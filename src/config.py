@@ -1,26 +1,21 @@
-import os
-
 # ==========================================
 # 1. PATH & DATA CONFIGURATIONS (Đường dẫn & Dữ liệu)
 # ==========================================
-# File này nằm trong thư mục src, nên BASE_DIR sẽ lùi lại 1 cấp ra thư mục VLSP2026
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "dataset") # Dùng thư mục dataset như đã setup ở .gitignore
 
 # --- File Raw (Do BTC cung cấp) ---
-RAW_TRAIN_CSV = os.path.join(DATA_DIR, "train.csv")
-RAW_VAL_CSV = os.path.join(DATA_DIR, "val.csv") # Tập Hold-out (Thi thử thực chiến)
+RAW_TRAIN_CSV = r"D:\Project Vibe Coding\VLSP2026\datasets\train_dataset.csv"
+RAW_VAL_CSV = r"D:\Project Vibe Coding\VLSP2026\datasets\val_dataset.csv" # Tập Hold-out (Thi thử thực chiến)
 
-# --- Thông số Split (Dành cho file train.csv) ---
+# --- Thông số Split (Dành cho file train_dataset.csv) ---
 TRAIN_SPLIT_RATIO = 0.9  # 90% dữ liệu gốc để Train
 VAL_SPLIT_RATIO = 0.1    # 10% dữ liệu gốc làm Val nội bộ (Để Kaggle vẽ biểu đồ Loss)
 RANDOM_SEED = 42         # Đảm bảo chia data ngẫu nhiên nhưng cố định mỗi lần chạy
 
-# --- File Processed (Sau khi chạy script băm nhỏ thành JSONL) ---
-PROCESSED_TRAIN_JSONL = os.path.join(DATA_DIR, "train_90.jsonl")
-PROCESSED_VAL_INTERNAL_JSONL = os.path.join(DATA_DIR, "val_10.jsonl")
-PROCESSED_HOLDOUT_JSONL = os.path.join(DATA_DIR, "holdout_val.jsonl")
-OUTPUT_DIR = os.path.join(BASE_DIR, "checkpoints")
+# --- File Processed (Sau khi chạy script băm nhỏ) ---
+PROCESSED_TRAIN_JSONL = r"D:\Project Vibe Coding\VLSP2026\datasets\train_90.jsonl"
+PROCESSED_VAL_INTERNAL_JSONL = r"D:\Project Vibe Coding\VLSP2026\datasets\val_10.jsonl"
+PROCESSED_HOLDOUT_JSONL = r"D:\Project Vibe Coding\VLSP2026\datasets\holdout_val.jsonl"
+OUTPUT_DIR = r"D:\Project Vibe Coding\VLSP2026\checkpoints"
 
 # ==========================================
 # 2. BASE MODEL CONFIGURATION (LLM chính)
@@ -36,16 +31,26 @@ EMBEDDING_MODEL_ID = "BAAI/bge-m3"          # 569M params, ~2.27GB VRAM, hỗ tr
 EMBEDDING_DEVICE = "cuda"                   # Để trên VRAM cho tốc độ ~0.05s/query
 EMBEDDING_DIMENSION = 1024                  # Chiều vector của BGE-M3
 
-# --- Vector DB ---
-VECTOR_DB_BACKEND = "faiss"                 # Hoặc "chromadb"
-FAISS_INDEX_PATH = "rag/faiss_index"        # Đường dẫn lưu FAISS index
-BM25_INDEX_PATH = "rag/bm25_index.pkl"      # Đường dẫn lưu BM25 index
+# --- Vector DB Paths ---
+VECTOR_DB_BACKEND = "faiss"                 
+RAG_DIR = r"D:\Project Vibe Coding\VLSP2026\rag_db"
+FAISS_INDEX_PATH = r"D:\Project Vibe Coding\VLSP2026\rag_db\faiss_index.bin"
+BM25_INDEX_PATH = r"D:\Project Vibe Coding\VLSP2026\rag_db\bm25_index.pkl"
+RAG_METADATA_PATH = r"D:\Project Vibe Coding\VLSP2026\rag_db\metadata.pkl"
+
+
 
 # --- Retrieval Settings ---
 BM25_TOP_K = 20                             # Số kết quả BM25 lấy trước khi RRF
 DENSE_TOP_K = 20                            # Số kết quả Semantic lấy trước khi RRF
 RRF_K = 60                                  # Hệ số RRF (chuẩn = 60)
-FINAL_TOP_K = 2                             # Số bài mẫu cuối cùng nhét vào Prompt
+FINAL_TOP_K = 2                             # Số bài mẫu tối đa nhét vào Prompt
+
+# --- Ngưỡng Tương đồng (Threshold-gated RAG) ---
+# Python quyết định hoàn toàn. LLM KHÔNG được phép tự phán "bài mẫu có liên quan không".
+# Nếu score >= ngưỡng → Few-shot (nhét ví dụ vào Prompt)
+# Nếu score <  ngưỡng → Zero-shot (Prompt sạch, không có ví dụ nào)
+SIMILARITY_THRESHOLD = 0.75                 # Ngưỡng ban đầu, điều chỉnh sau khi test
 
 # ==========================================
 # 3. LORA / QLORA CONFIGURATION (Tham số Fine-tune)

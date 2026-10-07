@@ -7,7 +7,12 @@ authors = [
     { name = "Khanh Nguyen", email = "mailcuakhanhowo@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "faiss-cpu>=1.15.1",
+    "pandas>=3.0.6",
+    "rank-bm25>=0.2.2",
+    "sentence-transformers>=6.1.0",
+]
 
 [project.scripts]
 vlsp2026 = "vlsp2026:main"
