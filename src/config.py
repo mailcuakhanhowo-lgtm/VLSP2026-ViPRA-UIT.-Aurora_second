@@ -69,4 +69,4 @@ Sau khi giải xong 4 bước ở trên, hãy tự động chốt đáp án ở 
 ANSWER: <chỉ ghi 1 con số đáp án>
 UNIT: <chỉ ghi đơn vị của đáp án>"""
 
-ASSISTANT_PREFILL = "Sau đây là câu trả lời chi tiết với 4 phần theo đúng yêu cầu:\n\n1. Nhận diện dữ kiện:"
+ASSISTANT_PREFILL = "Sau đây là câu trả lời chi tiết với 4 phần theo đúng yêu cầu:\n"
