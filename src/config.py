@@ -52,6 +52,9 @@ RRF_K = 60
 FINAL_TOP_K = 2
 SIMILARITY_THRESHOLD = 0.75
 
+# Bật/Tắt chế độ chạy thử (Dev/Test). Đặt None để chạy toàn bộ dữ liệu.
+JUST_TEST_QUERIES = 5
+
 # ==========================================
 # 4. PROMPT TEMPLATES (Qwen2.5)
 # ==========================================

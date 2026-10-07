@@ -67,8 +67,14 @@ def main():
     llm = LLMEngine()
     
     df_dev = pd.read_csv(config.RAW_DEV_CSV, encoding='utf-8')
-    test_rows = df_dev.iloc[:5] # Bỏ [:5] nếu muốn chạy full
     
+    if hasattr(config, 'JUST_TEST_QUERIES') and config.JUST_TEST_QUERIES is not None:
+        test_rows = df_dev.iloc[:config.JUST_TEST_QUERIES]
+        print(f"[*] CHÚ Ý: Đang chạy ở chế độ TEST, chỉ xử lý {config.JUST_TEST_QUERIES} câu hỏi.")
+    else:
+        test_rows = df_dev
+        print(f"[*] Đang chạy TOÀN BỘ dữ liệu ({len(test_rows)} câu hỏi).")
+        
     btc_submission = []
     
     for idx, test_row in tqdm(test_rows.iterrows(), total=len(test_rows), desc="Inference Progress"):
