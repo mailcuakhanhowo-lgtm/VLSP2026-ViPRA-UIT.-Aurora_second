@@ -48,8 +48,11 @@ class LLMEngine:
 
     def generate(self, messages: list) -> dict:
         text = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=False
+            messages, tokenize=False, add_generation_prompt=True
         )
+        
+        # Nối trực tiếp câu mớm lời vào cuối (thẻ vẫn đang mở)
+        text += config.ASSISTANT_PREFILL
         
         inputs = self.tokenizer(text, return_tensors="pt").to(self.model.device)
         

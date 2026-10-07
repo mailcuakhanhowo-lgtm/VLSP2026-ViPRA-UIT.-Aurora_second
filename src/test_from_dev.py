@@ -90,8 +90,7 @@ def main():
         
         messages = [
             {"role": "system", "content": config.SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
-            {"role": "assistant", "content": config.ASSISTANT_PREFILL}
+            {"role": "user", "content": user_content}
         ]
         
         result = llm.generate(messages)
