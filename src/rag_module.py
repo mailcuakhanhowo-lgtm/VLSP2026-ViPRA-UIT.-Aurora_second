@@ -182,9 +182,9 @@ class RAGPipeline:
 
 # Kịch bản Build DB nếu chạy file này trực tiếp
 if __name__ == "__main__":
-    train_csv_rag = r"D:\Project Vibe Coding\VLSP2026\datasets\train_90_rag.csv"
-    print(f"[*] Reading RAG CSV from {train_csv_rag}")
-    corpus_df = pd.read_csv(train_csv_rag, encoding='utf-8')
+    train_jsonl_rag = config.PROCESSED_TRAIN_JSONL
+    print(f"[*] Reading RAG data from {train_jsonl_rag}")
+    corpus_df = pd.read_json(train_jsonl_rag, lines=True, encoding='utf-8')
     
     pipeline = RAGPipeline()
     pipeline.build_bm25(corpus_df)
