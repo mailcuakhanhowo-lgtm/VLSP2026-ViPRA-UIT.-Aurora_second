@@ -11,10 +11,13 @@ RAG_DIR = os.path.join(BASE_DIR, "rag_db")
 # Tự động nhận diện môi trường Kaggle
 KAGGLE_INPUT_DIR = "/kaggle/input"
 if os.path.exists(KAGGLE_INPUT_DIR):
-    # Dùng glob để bắt trúng file bất chấp việc Kaggle tự đổi tên thư mục
-    RAW_TRAIN_CSV = glob.glob(f"{KAGGLE_INPUT_DIR}/*/*train_dataset.csv")[0]
-    RAW_DEV_CSV = glob.glob(f"{KAGGLE_INPUT_DIR}/*/*dev_dataset.csv")[0]
-    RAW_VAL_CSV = glob.glob(f"{KAGGLE_INPUT_DIR}/*/*val_dataset.csv")[0] if glob.glob(f"{KAGGLE_INPUT_DIR}/*/*val_dataset.csv") else ""
+    # Dùng recursive=True để lục tìm file ở bất kỳ độ sâu thư mục nào
+    train_files = glob.glob(f"{KAGGLE_INPUT_DIR}/**/train_dataset.csv", recursive=True)
+    dev_files = glob.glob(f"{KAGGLE_INPUT_DIR}/**/dev_dataset.csv", recursive=True)
+    
+    RAW_TRAIN_CSV = train_files[0] if train_files else ""
+    RAW_DEV_CSV = dev_files[0] if dev_files else ""
+    RAW_VAL_CSV = "" # Val nội bộ Kaggle thường gom chung
 else:
     # Chạy trên máy tính Local
     RAW_TRAIN_CSV = os.path.join(DATA_DIR, "train_dataset.csv")
