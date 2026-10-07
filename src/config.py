@@ -1,16 +1,25 @@
 import os
+import glob
 
 # ==========================================
-# 1. PATH & DATA CONFIGURATIONS (Portable)
+# 1. PATH & DATA CONFIGURATIONS (Auto-detect Kaggle)
 # ==========================================
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "datasets")
 RAG_DIR = os.path.join(BASE_DIR, "rag_db")
 
-# --- File Raw (Do BTC cung cấp) ---
-RAW_TRAIN_CSV = os.path.join(DATA_DIR, "train_dataset.csv")
-RAW_VAL_CSV = os.path.join(DATA_DIR, "val_dataset.csv")
-RAW_DEV_CSV = os.path.join(DATA_DIR, "dev_dataset.csv")
+# Tự động nhận diện môi trường Kaggle
+KAGGLE_INPUT_DIR = "/kaggle/input"
+if os.path.exists(KAGGLE_INPUT_DIR):
+    # Dùng glob để bắt trúng file bất chấp việc Kaggle tự đổi tên thư mục
+    RAW_TRAIN_CSV = glob.glob(f"{KAGGLE_INPUT_DIR}/*/*train_dataset.csv")[0]
+    RAW_DEV_CSV = glob.glob(f"{KAGGLE_INPUT_DIR}/*/*dev_dataset.csv")[0]
+    RAW_VAL_CSV = glob.glob(f"{KAGGLE_INPUT_DIR}/*/*val_dataset.csv")[0] if glob.glob(f"{KAGGLE_INPUT_DIR}/*/*val_dataset.csv") else ""
+else:
+    # Chạy trên máy tính Local
+    RAW_TRAIN_CSV = os.path.join(DATA_DIR, "train_dataset.csv")
+    RAW_VAL_CSV = os.path.join(DATA_DIR, "val_dataset.csv")
+    RAW_DEV_CSV = os.path.join(DATA_DIR, "dev_dataset.csv")
 
 # --- File Processed ---
 PROCESSED_TRAIN_JSONL = os.path.join(DATA_DIR, "train_processed.jsonl")
