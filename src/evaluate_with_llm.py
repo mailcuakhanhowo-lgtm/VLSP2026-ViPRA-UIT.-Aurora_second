@@ -54,7 +54,7 @@ Chỉ trả lời bằng một từ duy nhất: TRUE (nếu tương đương/ch�
         return result.startswith("TRUE")
 
 def main():
-    csv_path = "datasets/dev_dataset.csv"
+    csv_path = config.RAW_DEV_CSV
     json_path = "submission.json"
     
     try:
