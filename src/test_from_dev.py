@@ -102,7 +102,8 @@ def main():
         tqdm.write(f"\n[Câu {q_id}] Đã xử lý xong!")
 
     print("\n[*] Đang lưu file submission.json...")
-    with open("submission.json", "w", encoding="utf-8") as f:
+    out_path = os.path.join(config.BASE_DIR, "submission.json")
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(btc_submission, f, ensure_ascii=False, indent=2)
         
     print("[+] Hoàn tất! File nộp bài đã sẵn sàng.")

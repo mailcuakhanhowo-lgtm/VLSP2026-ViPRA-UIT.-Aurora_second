@@ -55,7 +55,8 @@ Chỉ trả lời bằng một từ duy nhất: TRUE (nếu tương đương/ch�
 
 def main():
     csv_path = config.RAW_DEV_CSV
-    json_path = "submission.json"
+    import os
+    json_path = os.path.join(config.BASE_DIR, "submission.json")
     
     try:
         df_gt = pd.read_csv(csv_path)
