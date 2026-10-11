@@ -190,6 +190,33 @@ def health_check():
     }
 
 
+@app.get("/v1/models", summary="Endpoint xác minh mô hình theo Mục 2.2 của BTC")
+def get_vllm_models():
+    """Proxy trực tiếp tới vLLM localhost:8000/v1/models để BTC kiểm tra model ID."""
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            f"{config.LM_API_BASE}/models",
+            headers={"Authorization": f"Bearer {config.LM_API_KEY}"}
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data
+    except Exception as e:
+        logger.error(f"Lỗi truy vấn vLLM /v1/models: {e}")
+        # Fallback minh bạch đúng định dạng OpenAI
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": config.BASE_MODEL_ID,
+                    "object": "model",
+                    "owned_by": "vllm"
+                }
+            ]
+        }
+
+
 @app.post(
     "/predict",
     response_model=List[PredictOutputItem],
