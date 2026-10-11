@@ -42,7 +42,7 @@ def setup_lm():
             model=f"openai/{config.BASE_MODEL_ID}",
             api_base=config.LM_API_BASE,
             api_key=config.LM_API_KEY,
-            max_tokens=1024,
+            max_tokens=512,
             temperature=0.1,
         )
     else:
@@ -193,14 +193,19 @@ def run_optimization():
         display_table=5, # Hiển thị 5 ví dụ mẫu đầu tiên
     )
     final_score = evaluator(optimized_module)
-    print(f"\n[Result] Điểm P1 (Correctness) cuối cùng trên Dev: {final_score:.2%}")
-
+    
     # --- 5. Lưu kết quả ---
     os.makedirs(config.DSPY_OUTPUT_DIR, exist_ok=True)
     optimized_module.save(config.OPTIMIZED_PROMPT_PATH)
     print(f"\n[Save] Đã lưu Optimized Prompt tại: {config.OPTIMIZED_PROMPT_PATH}")
-    print("[Done] Hoàn tất! Bây giờ anh có thể dùng file này trong API server.\n")
 
+    try:
+        score_val = float(final_score) if not hasattr(final_score, 'score') else float(final_score.score)
+        print(f"\n[Result] Điểm P1 (Correctness) cuối cùng trên Dev: {score_val:.2%}")
+    except Exception:
+        print(f"\n[Result] Đánh giá hoàn tất: {final_score}")
+
+    print("[Done] Hoàn tất! Bây giờ anh có thể dùng file này trong API server.\n")
     return optimized_module, final_score
 
 
