@@ -9,10 +9,14 @@ authors = [
 requires-python = ">=3.14"
 dependencies = [
     "accelerate>=1.15.0",
+    "dspy-ai>=3.4.0",
     "faiss-cpu>=1.15.1",
     "pandas>=3.0.6",
     "rank-bm25>=0.2.2",
+    "sacremoses>=0.2.0",
     "sentence-transformers>=6.1.0",
+    "sentencepiece>=0.2.2",
+    "transformers>=5.19.0",
 ]
 
 [project.scripts]

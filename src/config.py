@@ -70,3 +70,55 @@ ANSWER: <chỉ ghi 1 con số đáp án>
 UNIT: <chỉ ghi đơn vị của đáp án>"""
 
 ASSISTANT_PREFILL = "Sau đây là câu trả lời chi tiết với 4 phần theo đúng yêu cầu:\n"
+
+# ==========================================
+# 5. DSPy PROMPT OPTIMIZER CONFIGURATION
+# ==========================================
+# Đường dẫn lưu Prompt đã tối ưu (output của optimize.py)
+DSPY_OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+OPTIMIZED_PROMPT_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_prompt.json")
+
+# Cấu hình Language Model cho DSPy (trỏ tới vLLM local)
+LM_API_BASE = "http://localhost:8000/v1"  # Endpoint vLLM local
+LM_API_KEY  = "none"                      # vLLM không cần key thật
+# LM_MODEL_ID dùng lại BASE_MODEL_ID đã khai báo ở trên
+
+# Sai số số học cho phép theo luật BTC
+NUMERICAL_TOLERANCE = 0.05
+
+# Giới hạn số câu đưa vào trình tối ưu (giảm nếu GPU yếu / test nhanh)
+MAX_TRAIN_EXAMPLES = 200
+MAX_DEV_EXAMPLES   = 100
+
+# Tham số MIPROv2 - tăng NUM_TRIALS để tối ưu kỹ hơn (nhưng chậm hơn)
+MIPRO_NUM_CANDIDATES         = 10  # Số biến thể Instruction được sinh ra
+MIPRO_NUM_TRIALS             = 20  # Số vòng tìm kiếm Bayesian
+MIPRO_MAX_BOOTSTRAPPED_DEMOS = 3   # Số ví dụ tự bootstrap từ tập train
+MIPRO_MAX_LABELED_DEMOS      = 3   # Số ví dụ có nhãn cố định
+
+# ==========================================
+# 6. TRANSLATION CONFIGURATION (Vi → En)
+# Dùng VinAI translate-vi2en-v2 (~400MB, seq2seq - KHÔNG tính vào giới hạn 8B của BTC)
+# ==========================================
+
+# Bật/tắt bước dịch thuật trước khi đưa vào LLM
+# True  → Dịch Vi→En (nên dùng khi main model thiên về English)
+# False → Giữ nguyên tiếng Việt (nên dùng khi main model hỗ trợ Việt tốt)
+USE_TRANSLATION = True
+
+# Model dịch thuật (HuggingFace model ID)
+TRANSLATION_MODEL_ID = "vinai/vinai-translate-vi2en-v2"
+
+# Thư mục cache lưu model đã tải về (tránh download lại mỗi lần chạy)
+TRANSLATION_CACHE_DIR = os.path.join(BASE_DIR, "models", "vinai-translate")
+
+# Thiết bị chạy translator
+# "cuda" → chạy trên GPU (nhanh, ~0.05s/câu, tốn ~400MB VRAM)
+# "cpu"  → chạy trên CPU (chậm hơn ~0.3s/câu, không tốn VRAM của main LLM)
+TRANSLATION_DEVICE = "cpu"
+
+# Số token tối đa đầu ra của bản dịch (đề vật lý thường < 150 token)
+TRANSLATION_MAX_LENGTH = 256
+
+# Batch size khi dịch nhiều câu cùng lúc (dùng trong optimize.py để pre-translate)
+TRANSLATION_BATCH_SIZE = 32
