@@ -116,8 +116,10 @@ def run_optimization():
     #   - Tự động sinh biến thể câu lệnh (Instruction) từ tập Train
     #   - Tự động bootstrap Few-shot examples từ tập Train
     #   - Đánh giá và chọn lọc bằng tập Dev (valset) - KHÔNG dùng Dev để sinh ví dụ
+    # Trong DSPy 3.x: cần đặt auto=None nếu tự định nghĩa num_candidates & num_trials
     optimizer = MIPROv2(
         metric=btc_correctness_metric,
+        auto=None,                                   # Tắt chế độ auto để dùng custom candidates/trials
         num_candidates=config.MIPRO_NUM_CANDIDATES,  # Số biến thể Instruction được sinh ra
         max_bootstrapped_demos=config.MIPRO_MAX_BOOTSTRAPPED_DEMOS,
         max_labeled_demos=config.MIPRO_MAX_LABELED_DEMOS,
@@ -132,9 +134,6 @@ def run_optimization():
     print()
 
     # --- 3. Chạy tối ưu ---
-    # trainset: DSPy dùng để bootstrap + sinh instruction candidates
-    # valset  : DSPy dùng để đánh giá và chọn Prompt tốt nhất (quan trọng!)
-    # num_trials: Số vòng tìm kiếm Bayesian - tăng lên để tốt hơn nhưng chậm hơn
     optimized_module = optimizer.compile(
         student=student_module,
         trainset=train_data,
@@ -143,7 +142,6 @@ def run_optimization():
         minibatch=True,               # Dùng minibatch để tối ưu nhanh hơn
         minibatch_size=min(25, len(train_data)),
         minibatch_full_eval_steps=5,  # Cứ 5 trial thì đánh giá full trên dev
-        requires_permission_to_run=False,  # Tự chạy không hỏi xác nhận
     )
 
     # --- 4. Đánh giá lần cuối trên Dev set ---
