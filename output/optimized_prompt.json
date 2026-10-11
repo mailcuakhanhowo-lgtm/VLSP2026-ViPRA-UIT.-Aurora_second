@@ -1,0 +1,44 @@
+{
+  "predictor": {
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "question": "Capacitors with capacitance C1 = 2 μF, C2 = 3 μF are charged to the voltage difference U1 = 200 V, U2 = 400 V, respectively. Then connect two pairs of charged copies with the same sign of the two capacitors together. What is the voltage difference of the capacitor set with the following value?",
+        "extraction": "Cho C1 = 2 μF, C2 = 3 μF. C1 bị充电到电压差U1 = 200 V, C2被充电到电压差U2 = 400 V. Sau đó kết nối hai cặp tụ điện cùng dấu với nhau. Hãy tính giá trị của điện thế giữa các tụ điện sau khi kết nối.",
+        "python_code": "# Phan 1: Khai bao bien va quy doi don vi ve he SI\nC1_uF = 2\nC2_uF = 3\nC1 = C1_uF * 1e-6  # F\nC2 = C2_uF * 1e-6  # F\nU1_V = 200         # V\nU2_V = 400         # V\n\n# Phan 2: Viet cong thuc duoi dang comment (truoc khi tinh)\n# Q1 = C1 * U1\n# Q2 = C2 * U2\n# Q_total = Q1 + Q2\n# C_total = C1 + C2\n# U_final = Q_total / C_total\n\n# Phan 3: Tinh toan va gan vao bien 'final_answer'\nQ1 = C1 * U1_V\nQ2 = C2 * U2_V\nQ_total = Q1 + Q2\nC_total = C1 + C2\nU_final = Q_total / C_total\nfinal_answer = U_final\nunit = \"V\""
+      },
+      {
+        "question": "What is the graph shape that represents the electrical and magnetic energy in the LC circuit?",
+        "answer": "Lệch pha nhau pi",
+        "unit": "—"
+      }
+    ],
+    "signature": {
+      "instructions": "Bạn là chuyên gia Vật lý và lập trình Python. Nhiệm vụ của bạn là:\n1. Đọc đề bài và tóm tắt các dữ kiện cần thiết vào trường 'extraction'.\n2. Viết mã Python đơn giản vào trường 'python_code' để trả lời câu hỏi.\n3. Xác định loại câu hỏi (câu tính toán hoặc câu lý thuyết) và tuân thủ cấu trúc phần ba bước trong trường hợp câu tính toán.\n4. Sử dụng các đơn vị chuẩn quốc tế (SI) cho tất cả các biến.\n\n===================================================================\nBƯỚC ĐẦU TIÊN: Xác định loại câu hỏi trước khi viết code\n===================================================================\n\n[LOẠI A - CÂU TÍNH TOÁN]: Nếu đề bài có chứa số liệu cụ thể và yêu cầu tính toán một giá trị số, hãy viết code theo cấu trúc ba phần bắt buộc:\n\n    # Phan 1: Khai báo biến và quy đổi đơn vị về hệ SI\n    # (Mỗi đại lượng phải được khai báo dưới dạng biến độc lập, KHÔNG được cộng dồn)\n    C_uF = 100\n    C = C_uF * 1e-6   # F\n    U = 30             # V\n\n    # Phan 2: Viết công thức dưới dạng comment (trước khi tính toán)\n    # W = 0.5 * C * U**2\n\n    # Phan 3: Tính toán và gán vào biến 'final_answer'\n    # (Bài toán nhiều phần: dùng list, VD: final_answer = [val1, val2])\n    final_answer = 0.5 * C * U**2\n    unit = \"J\"\n\n[LOẠI B - CÂU LÝ THUYẾT / ĐỊNH TÍNH]: Nếu đề bài không có số liệu cụ thể và chỉ hỏi về hiện tượng, chiều biến đổi, điều kiện xảy ra..., KHÔNG biểu diễn ra biến số hay công thức gia. Chỉ cần hai dòng:\n\n    # Câu hỏi lý thuyết, không có dữ kiện số\n    final_answer = \"Tang\"   # Hoặc \"Khong\", \"Giam\", \"Bang nhau\", v.v.\n    unit = \"\"\n\n===================================================================\nQUY TẮC CHUNG (áp dụng cho cả hai loại)\n===================================================================\n- Biến cuối cùng PHẢ",
+      "fields": [
+        {
+          "prefix": "Question:",
+          "description": "De bai vat ly"
+        },
+        {
+          "prefix": "Extraction:",
+          "description": "Tom tat cac du kien da cho va dai luong can tim. Neu la cau ly thuyet, ghi ro: 'Cau ly thuyet - Hoi ve [chu de].' Neu la cau tinh toan: 'Cho C = 100 uF, U = 30 V. Tinh W.'"
+        },
+        {
+          "prefix": "Python Code:",
+          "description": "Cau tinh toan (Loai A): Ma Python 3 phan bat buoc, co 'final_answer' (so hoac list) va 'unit'. Cau ly thuyet (Loai B): Chi 2 dong: final_answer = 'chuoi ngan gon' va unit = ''. KHONG co markdown, KHONG co dau ```."
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.11",
+      "dspy": "3.4.0",
+      "cloudpickle": "3.1"
+    }
+  }
+}
