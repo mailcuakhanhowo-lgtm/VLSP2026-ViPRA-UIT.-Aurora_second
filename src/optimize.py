@@ -47,18 +47,56 @@ def setup_lm():
         )
     else:
         print(f"[Setup] Không thấy vLLM server. Chuyển sang nạp trực tiếp qua Transformers...")
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        
-        # Trong DSPy 3.x: truyền torch_dtype dưới dạng string 'float16' để tránh lỗi JSON serializable của litellm
-        lm = dspy.LM(
-            model=f"huggingface/{config.BASE_MODEL_ID}",
-            model_type="chat",
+        # Chạy Local GPU hoàn toàn (không gọi HuggingFace Inference API đám mây):
+        from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
+        print(f"[Setup] Đang nạp model cục bộ {config.BASE_MODEL_ID} lên 2x T4 GPU (device_map='auto', float16)...")
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            config.BASE_MODEL_ID,
+            torch_dtype=torch.float16,
             device_map="auto",
-            torch_dtype="float16",
-            max_tokens=1024,
+            trust_remote_code=True,
+        )
+        hf_tokenizer = AutoTokenizer.from_pretrained(config.BASE_MODEL_ID, trust_remote_code=True)
+        
+        pipe = pipeline(
+            "text-generation",
+            model=hf_model,
+            tokenizer=hf_tokenizer,
+            max_new_tokens=1024,
+            do_sample=False,
             temperature=0.1,
         )
+
+        class LocalTransformersLM(dspy.LM):
+            def __init__(self, pipe, model_name):
+                super().__init__(model=model_name)
+                self.pipe = pipe
+                self.model = model_name
+
+            def basic_request(self, prompt, **kwargs):
+                pass
+
+            def __call__(self, prompt=None, messages=None, **kwargs):
+                # Chuẩn hóa input từ DSPy thành text
+                if messages is not None:
+                    # Nếu truyền messages dạng chat
+                    prompt_text = self.pipe.tokenizer.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=True
+                    )
+                else:
+                    prompt_text = prompt
+
+                out = self.pipe(prompt_text, max_new_tokens=kwargs.get("max_tokens", 1024), do_sample=False)
+                generated = out[0]["generated_text"]
+                # Cắt bỏ phần prompt ban đầu, chỉ lấy phần model sinh ra
+                if generated.startswith(prompt_text):
+                    response_text = generated[len(prompt_text):].strip()
+                else:
+                    response_text = generated.strip()
+                return [response_text]
+
+        lm = LocalTransformersLM(pipe, config.BASE_MODEL_ID)
 
     dspy.configure(lm=lm)
     print("[Setup] Mô hình đã sẵn sàng!\n")

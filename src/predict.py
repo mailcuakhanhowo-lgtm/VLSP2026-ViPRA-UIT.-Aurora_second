@@ -40,15 +40,50 @@ def setup_lm():
         )
     else:
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        lm = dspy.LM(
-            model=f"huggingface/{config.BASE_MODEL_ID}",
-            model_type="chat",
+        from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+        print(f"[Predict Setup] Nạp {config.BASE_MODEL_ID} cục bộ lên GPU (device_map='auto', float16)...")
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            config.BASE_MODEL_ID,
+            torch_dtype=torch.float16,
             device_map="auto",
-            torch_dtype="float16",
-            max_tokens=1024,
+            trust_remote_code=True,
+        )
+        hf_tokenizer = AutoTokenizer.from_pretrained(config.BASE_MODEL_ID, trust_remote_code=True)
+        pipe = pipeline(
+            "text-generation",
+            model=hf_model,
+            tokenizer=hf_tokenizer,
+            max_new_tokens=1024,
+            do_sample=False,
             temperature=0.1,
         )
+
+        class LocalTransformersLM(dspy.LM):
+            def __init__(self, pipe, model_name):
+                super().__init__(model=model_name)
+                self.pipe = pipe
+                self.model = model_name
+
+            def basic_request(self, prompt, **kwargs):
+                pass
+
+            def __call__(self, prompt=None, messages=None, **kwargs):
+                if messages is not None:
+                    prompt_text = self.pipe.tokenizer.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=True
+                    )
+                else:
+                    prompt_text = prompt
+
+                out = self.pipe(prompt_text, max_new_tokens=kwargs.get("max_tokens", 1024), do_sample=False)
+                generated = out[0]["generated_text"]
+                if generated.startswith(prompt_text):
+                    response_text = generated[len(prompt_text):].strip()
+                else:
+                    response_text = generated.strip()
+                return [response_text]
+
+        lm = LocalTransformersLM(pipe, config.BASE_MODEL_ID)
 
     dspy.configure(lm=lm)
 
