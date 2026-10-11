@@ -101,24 +101,29 @@ MIPRO_MAX_LABELED_DEMOS      = 3   # Số ví dụ có nhãn cố định
 # Dùng VinAI translate-vi2en-v2 (~400MB, seq2seq - KHÔNG tính vào giới hạn 8B của BTC)
 # ==========================================
 
-# Bật/tắt bước dịch thuật trước khi đưa vào LLM
-# True  → Dịch Vi→En (nên dùng khi main model thiên về English)
-# False → Giữ nguyên tiếng Việt (nên dùng khi main model hỗ trợ Việt tốt)
 USE_TRANSLATION = True
-
-# Model dịch thuật (HuggingFace model ID)
 TRANSLATION_MODEL_ID = "vinai/vinai-translate-vi2en-v2"
 
-# Thư mục cache lưu model đã tải về (tránh download lại mỗi lần chạy)
-TRANSLATION_CACHE_DIR = os.path.join(BASE_DIR, "models", "vinai-translate")
+# Thư mục cache lưu model đã tải về
+if os.path.exists(KAGGLE_INPUT_DIR):
+    TRANSLATION_CACHE_DIR = "/kaggle/working/models/vinai-translate"
+    # Đảm bảo đường dẫn output nằm trong /kaggle/working/ (Writable)
+    DSPY_OUTPUT_DIR = "/kaggle/working/output"
+    OPTIMIZED_PROMPT_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_prompt.json")
+else:
+    TRANSLATION_CACHE_DIR = os.path.join(BASE_DIR, "models", "vinai-translate")
 
-# Thiết bị chạy translator
-# "cuda" → chạy trên GPU (nhanh, ~0.05s/câu, tốn ~400MB VRAM)
-# "cpu"  → chạy trên CPU (chậm hơn ~0.3s/câu, không tốn VRAM của main LLM)
-TRANSLATION_DEVICE = "cpu"
+# Tự động chia tải GPU (Tối ưu 2x T4 Kaggle):
+# Nếu có 2 GPU (Kaggle T4 x2): Đẩy translator sang GPU 1 (cuda:1) để GPU 0 rảnh tải cho LLM
+import torch
+if torch.cuda.is_available():
+    if torch.cuda.device_count() > 1:
+        TRANSLATION_DEVICE = "cuda:1"
+    else:
+        TRANSLATION_DEVICE = "cuda:0"
+else:
+    TRANSLATION_DEVICE = "cpu"
 
-# Số token tối đa đầu ra của bản dịch (đề vật lý thường < 150 token)
 TRANSLATION_MAX_LENGTH = 256
-
-# Batch size khi dịch nhiều câu cùng lúc (dùng trong optimize.py để pre-translate)
 TRANSLATION_BATCH_SIZE = 32
+

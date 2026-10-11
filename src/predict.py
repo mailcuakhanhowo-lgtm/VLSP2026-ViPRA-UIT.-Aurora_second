@@ -20,17 +20,46 @@ from translator import translate_vi_to_en, preload as preload_translator
 
 
 def setup_lm():
-    lm = dspy.LM(
-        model=f"openai/{config.BASE_MODEL_ID}",
-        api_base=config.LM_API_BASE,
-        api_key=config.LM_API_KEY,
-        max_tokens=1024,
-        temperature=0.1,
-    )
+    import urllib.request
+    has_vllm = False
+    try:
+        req = urllib.request.Request(f"{config.LM_API_BASE}/models", headers={"Authorization": f"Bearer {config.LM_API_KEY}"})
+        with urllib.request.urlopen(req, timeout=2) as response:
+            if response.status == 200:
+                has_vllm = True
+    except Exception:
+        has_vllm = False
+
+    if has_vllm:
+        lm = dspy.LM(
+            model=f"openai/{config.BASE_MODEL_ID}",
+            api_base=config.LM_API_BASE,
+            api_key=config.LM_API_KEY,
+            max_tokens=1024,
+            temperature=0.1,
+        )
+    else:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        print(f"[Predict Setup] Nạp {config.BASE_MODEL_ID} qua Transformers (device_map='auto', torch.float16)...")
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            config.BASE_MODEL_ID,
+            torch_dtype=torch.float16,
+            device_map="auto",
+            trust_remote_code=True,
+        )
+        hf_tokenizer = AutoTokenizer.from_pretrained(config.BASE_MODEL_ID, trust_remote_code=True)
+        lm = dspy.HFModel(
+            model=config.BASE_MODEL_ID,
+            hf_model=hf_model,
+            hf_tokenizer=hf_tokenizer,
+            max_tokens=1024,
+            temperature=0.1,
+        )
+
     dspy.configure(lm=lm)
 
     # Preload translator model vào RAM/VRAM ngay khi khởi động
-    # → Tránh delay ~3-5s ở request đầu tiên
     if config.USE_TRANSLATION:
         preload_translator()
 

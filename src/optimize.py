@@ -21,19 +21,57 @@ from translator import translate_batch, preload as preload_translator
 
 
 def setup_lm():
-    """Khởi tạo kết nối tới Language Model (vLLM local)."""
-    print(f"[Setup] Kết nối tới model: {config.BASE_MODEL_ID}")
-    print(f"[Setup] API Base: {config.LM_API_BASE}")
+    """Khởi tạo kết nối tới Language Model: tự động chọn vLLM nếu có, hoặc tải thẳng qua Transformers 2x T4."""
+    import os
+    import urllib.request
+    
+    # Kiểm tra xem có vLLM server đang chạy ở LM_API_BASE không
+    has_vllm = False
+    try:
+        req = urllib.request.Request(f"{config.LM_API_BASE}/models", headers={"Authorization": f"Bearer {config.LM_API_KEY}"})
+        with urllib.request.urlopen(req, timeout=2) as response:
+            if response.status == 200:
+                has_vllm = True
+    except Exception:
+        has_vllm = False
 
-    lm = dspy.LM(
-        model=f"openai/{config.BASE_MODEL_ID}",
-        api_base=config.LM_API_BASE,
-        api_key=config.LM_API_KEY,
-        max_tokens=1024,
-        temperature=0.1,
-    )
+    if has_vllm:
+        print(f"[Setup] Phát hiện vLLM server đang chạy tại: {config.LM_API_BASE}")
+        print(f"[Setup] Kết nối tới model: {config.BASE_MODEL_ID}")
+        lm = dspy.LM(
+            model=f"openai/{config.BASE_MODEL_ID}",
+            api_base=config.LM_API_BASE,
+            api_key=config.LM_API_KEY,
+            max_tokens=1024,
+            temperature=0.1,
+        )
+    else:
+        print(f"[Setup] Không thấy vLLM server. Chuyển sang nạp trực tiếp qua Transformers...")
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        
+        # Tối ưu 2x T4 theo chuẩn Kaggle:
+        # - torch_dtype=torch.float16 (T4 không hỗ trợ bfloat16 tốt)
+        # - device_map="auto" (tự băm đều mô hình lên cả 2 GPU T4, mỗi GPU ~7.5GB)
+        print(f"[Setup] Đang nạp model {config.BASE_MODEL_ID} với device_map='auto' và torch.float16...")
+        hf_model = AutoModelForCausalLM.from_pretrained(
+            config.BASE_MODEL_ID,
+            torch_dtype=torch.float16,
+            device_map="auto",
+            trust_remote_code=True,
+        )
+        hf_tokenizer = AutoTokenizer.from_pretrained(config.BASE_MODEL_ID, trust_remote_code=True)
+        
+        lm = dspy.HFModel(
+            model=config.BASE_MODEL_ID,
+            hf_model=hf_model,
+            hf_tokenizer=hf_tokenizer,
+            max_tokens=1024,
+            temperature=0.1,
+        )
+
     dspy.configure(lm=lm)
-    print("[Setup] Kết nối thành công!\n")
+    print("[Setup] Mô hình đã sẵn sàng!\n")
     return lm
 
 

@@ -149,16 +149,20 @@ def _load_model_if_needed():
         cache_dir=cache_dir,
         src_lang="vi_VN",
     )
+    
+    # Dùng float16 nếu chạy trên GPU để tiết kiệm VRAM và tăng tốc độ
+    dtype = torch.float16 if "cuda" in str(device_str) and torch.cuda.is_available() else torch.float32
     _model = AutoModelForSeq2SeqLM.from_pretrained(
         model_id,
         cache_dir=cache_dir,
+        torch_dtype=dtype,
     )
 
-    _device = torch.device(device_str if torch.cuda.is_available() or device_str == "cpu" else "cpu")
+    _device = torch.device(device_str if (torch.cuda.is_available() or device_str == "cpu") else "cpu")
     _model = _model.to(_device)
     _model.eval()
 
-    print(f"[Translator] Model loaded successfully on {_device}!\n")
+    print(f"[Translator] Model loaded successfully on {_device} with dtype={dtype}!\n")
 
 
 # ============================================================
