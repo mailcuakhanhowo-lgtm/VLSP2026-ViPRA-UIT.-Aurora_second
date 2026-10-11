@@ -48,6 +48,7 @@ def setup_lm():
     else:
         print(f"[Setup] Không thấy vLLM server. Chuyển sang nạp trực tiếp qua Transformers...")
         # Chạy Local GPU hoàn toàn (không gọi HuggingFace Inference API đám mây):
+        import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
         print(f"[Setup] Đang nạp model cục bộ {config.BASE_MODEL_ID} lên 2x T4 GPU (device_map='auto', float16)...")
