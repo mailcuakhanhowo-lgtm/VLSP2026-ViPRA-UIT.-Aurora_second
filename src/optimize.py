@@ -179,7 +179,7 @@ def run_optimization():
         valset=dev_data,
         num_trials=config.MIPRO_NUM_TRIALS,
         minibatch=True,               # Dùng minibatch để tối ưu nhanh hơn
-        minibatch_size=min(25, len(train_data)),
+        minibatch_size=min(30, len(train_data)),
         minibatch_full_eval_steps=5,  # Cứ 5 trial thì đánh giá full trên dev
     )
 

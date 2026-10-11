@@ -90,11 +90,11 @@ NUMERICAL_TOLERANCE = 0.05
 MAX_TRAIN_EXAMPLES = 200
 MAX_DEV_EXAMPLES   = 100
 
-# Tham số MIPROv2 - tăng NUM_TRIALS để tối ưu kỹ hơn (nhưng chậm hơn)
-MIPRO_NUM_CANDIDATES         = 10  # Số biến thể Instruction được sinh ra
-MIPRO_NUM_TRIALS             = 20  # Số vòng tìm kiếm Bayesian
-MIPRO_MAX_BOOTSTRAPPED_DEMOS = 3   # Số ví dụ tự bootstrap từ tập train
-MIPRO_MAX_LABELED_DEMOS      = 3   # Số ví dụ có nhãn cố định
+# Tham số MIPROv2 - Cân bằng tối ưu: 10 candidates, 40 trials
+MIPRO_NUM_CANDIDATES         = 10  # 10 biến thể Instruction
+MIPRO_NUM_TRIALS             = 40  # 40 vòng Bayesian Search
+MIPRO_MAX_BOOTSTRAPPED_DEMOS = 3   # 3 ví dụ PAL giải đúng tự động
+MIPRO_MAX_LABELED_DEMOS      = 2   # 2 ví dụ có nhãn tham chiếu
 
 # ==========================================
 # 6. TRANSLATION CONFIGURATION (Vi → En)
