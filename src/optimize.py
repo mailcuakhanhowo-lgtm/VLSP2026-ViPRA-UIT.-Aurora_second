@@ -50,22 +50,12 @@ def setup_lm():
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         
-        # Tối ưu 2x T4 theo chuẩn Kaggle:
-        # - torch_dtype=torch.float16 (T4 không hỗ trợ bfloat16 tốt)
-        # - device_map="auto" (tự băm đều mô hình lên cả 2 GPU T4, mỗi GPU ~7.5GB)
-        print(f"[Setup] Đang nạp model {config.BASE_MODEL_ID} với device_map='auto' và torch.float16...")
-        hf_model = AutoModelForCausalLM.from_pretrained(
-            config.BASE_MODEL_ID,
-            torch_dtype=torch.float16,
+        # Trong DSPy 3.x, khởi tạo HuggingFace model qua dspy.LM:
+        lm = dspy.LM(
+            model=f"huggingface/{config.BASE_MODEL_ID}",
+            model_type="chat",
             device_map="auto",
-            trust_remote_code=True,
-        )
-        hf_tokenizer = AutoTokenizer.from_pretrained(config.BASE_MODEL_ID, trust_remote_code=True)
-        
-        lm = dspy.HFModel(
-            model=config.BASE_MODEL_ID,
-            hf_model=hf_model,
-            hf_tokenizer=hf_tokenizer,
+            torch_dtype=torch.float16,
             max_tokens=1024,
             temperature=0.1,
         )

@@ -41,18 +41,11 @@ def setup_lm():
     else:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        print(f"[Predict Setup] Nạp {config.BASE_MODEL_ID} qua Transformers (device_map='auto', torch.float16)...")
-        hf_model = AutoModelForCausalLM.from_pretrained(
-            config.BASE_MODEL_ID,
-            torch_dtype=torch.float16,
+        lm = dspy.LM(
+            model=f"huggingface/{config.BASE_MODEL_ID}",
+            model_type="chat",
             device_map="auto",
-            trust_remote_code=True,
-        )
-        hf_tokenizer = AutoTokenizer.from_pretrained(config.BASE_MODEL_ID, trust_remote_code=True)
-        lm = dspy.HFModel(
-            model=config.BASE_MODEL_ID,
-            hf_model=hf_model,
-            hf_tokenizer=hf_tokenizer,
+            torch_dtype=torch.float16,
             max_tokens=1024,
             temperature=0.1,
         )
