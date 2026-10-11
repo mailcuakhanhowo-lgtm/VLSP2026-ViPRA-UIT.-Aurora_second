@@ -45,7 +45,7 @@ def setup_lm():
             model=f"huggingface/{config.BASE_MODEL_ID}",
             model_type="chat",
             device_map="auto",
-            torch_dtype=torch.float16,
+            torch_dtype="float16",
             max_tokens=1024,
             temperature=0.1,
         )

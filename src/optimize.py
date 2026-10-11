@@ -50,12 +50,12 @@ def setup_lm():
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
         
-        # Trong DSPy 3.x, khởi tạo HuggingFace model qua dspy.LM:
+        # Trong DSPy 3.x: truyền torch_dtype dưới dạng string 'float16' để tránh lỗi JSON serializable của litellm
         lm = dspy.LM(
             model=f"huggingface/{config.BASE_MODEL_ID}",
             model_type="chat",
             device_map="auto",
-            torch_dtype=torch.float16,
+            torch_dtype="float16",
             max_tokens=1024,
             temperature=0.1,
         )
