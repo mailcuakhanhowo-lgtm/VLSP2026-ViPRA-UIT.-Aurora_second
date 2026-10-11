@@ -82,6 +82,12 @@ def init_solver() -> Optional[PhysicsSolver]:
                 setup_lm()
                 solver = PhysicsSolver()
                 logger.info("Kết nối vLLM thành công!")
+                if os.path.exists(config.OPTIMIZED_PROMPT_PATH):
+                    try:
+                        solver.load(config.OPTIMIZED_PROMPT_PATH)
+                        logger.info(f"ĐÃ NẠP THÀNH CÔNG OPTIMIZED PROMPT TỪ: {config.OPTIMIZED_PROMPT_PATH}!")
+                    except Exception as pe:
+                        logger.warning(f"Không thể load prompt tối ưu: {pe}. Sử dụng base solver.")
                 return solver
     except Exception:
         pass
