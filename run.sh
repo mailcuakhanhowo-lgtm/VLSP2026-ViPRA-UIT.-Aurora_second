@@ -9,21 +9,13 @@ echo "========================================="
 pkill -f vllm
 pkill -f uvicorn
 
-# 2. Khoi dong vLLM Engine (Port 8000) - Tối ưu cho WSL2
+# 2. Khoi dong vLLM Engine (Port 8000)
 echo "[1/2] Dang khoi dong vLLM Engine (Qwen2.5-7B-Instruct)..."
-nohup env VLLM_USE_V1=0 \
-  VLLM_USE_FLASHINFER_SAMPLER=0 \
-  VLLM_USE_FLASHINFER=0 \
-  FLASHINFER_ENABLE_JIT=0 \
-  VLLM_FLASH_ATTN_VERSION=2 \
-  VLLM_WORKER_MULTIPROC_METHOD=spawn \
-  uv run vllm serve Qwen/Qwen2.5-7B-Instruct \
+nohup uv run vllm serve Qwen/Qwen2.5-7B-Instruct \
   --host 127.0.0.1 \
   --port 8000 \
   --gpu-memory-utilization 0.85 \
   --dtype float16 \
-  --enforce-eager \
-  --disable-custom-all-reduce \
   --max-model-len 6144 > vllm.log 2>&1 &
 
 echo "-> vLLM dang chay ngam (Port 8000)."
