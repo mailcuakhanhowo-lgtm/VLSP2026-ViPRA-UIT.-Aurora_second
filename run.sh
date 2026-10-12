@@ -9,7 +9,13 @@ echo "========================================="
 pkill -f vllm
 pkill -f uvicorn
 
-# 2. Khoi dong vLLM Engine (Port 8000)
+# 2. Thiet lap CUDA neu co san
+if [ -d "/usr/local/cuda" ]; then
+    export CUDA_HOME="/usr/local/cuda"
+    export PATH="/usr/local/cuda/bin:$PATH"
+fi
+
+# 3. Khoi dong vLLM Engine (Port 8000)
 echo "[1/2] Dang khoi dong vLLM Engine (Qwen2.5-7B-Instruct)..."
 nohup uv run vllm serve Qwen/Qwen2.5-7B-Instruct \
   --host 127.0.0.1 \
