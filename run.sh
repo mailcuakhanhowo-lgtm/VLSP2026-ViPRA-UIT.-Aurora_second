@@ -9,10 +9,16 @@ echo "========================================="
 pkill -f vllm
 pkill -f uvicorn
 
-# 2. Thiet lap CUDA neu co san
+# 2. Thiet lap CUDA tu he thong hoac moi truong uv
 if [ -d "/usr/local/cuda" ]; then
     export CUDA_HOME="/usr/local/cuda"
     export PATH="/usr/local/cuda/bin:$PATH"
+elif [ -d ".venv" ]; then
+    UV_CUDA=$(uv run python -c "import nvidia.cuda_nvcc, os; print(os.path.dirname(nvidia.cuda_nvcc.__file__))" 2>/dev/null)
+    if [ -n "$UV_CUDA" ] && [ -d "$UV_CUDA" ]; then
+        export CUDA_HOME="$UV_CUDA"
+        export PATH="$UV_CUDA/bin:$PATH"
+    fi
 fi
 
 # 3. Khoi dong vLLM Engine (Port 8000)
