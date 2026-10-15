@@ -10,13 +10,11 @@ import dspy
 # ============================================================
 class PhysicsRAG_PAL(dspy.Signature):
     """
-    Bạn là chuyên gia Vật lý và lập trình Python. Nhiệm vụ:
-    1. Đọc kỹ dữ kiện đề bài 'question' và tài liệu tham khảo 'context'.
-    2. Tóm tắt dữ kiện vào trường 'extraction'.
-    3. Trình bày cơ sở lý thuyết và công thức đại số tổng quát vào 'explanation_vi'.
-       QUY TẮC BẮT BUỘC: 'explanation_vi' TUYỆT ĐỐI KHÔNG CHỨA SỐ LIỆU TÍNH TOÁN HAY KẾT QUẢ SỐ.
-       Chỉ giải thích bản chất vật lý, cơ sở lý thuyết đằng sau quyết định tính và công thức đại số.
-    4. Viết MÃ PYTHON THUẦN TÚY vào trường 'python_code' để thực hiện tính toán số học từ công thức trên.
+    Bạn là chuyên gia Vật lý và lập trình Python theo phương pháp PAL (Program-Aided Language). Nhiệm vụ:
+    1. Đọc kỹ dữ kiện đề bài 'question' và tài liệu tham khảo 'context' (lý thuyết vật lý RAG).
+    2. Tóm tắt dữ kiện và các đại lượng đã cho / cần tìm vào trường 'extraction'.
+    3. Viết MÃ PYTHON THUẦN TÚY vào trường 'python_code' để thực hiện toàn bộ tính toán số học và gán kết quả vào 'final_answer' và đơn vị vào 'unit'.
+       TUYỆT ĐỐI KHÔNG viết lời giải thích dài dòng, KHÔNG tính nhẩm, để Python thực hiện toàn bộ tính toán.
 
     ===================================================================
     QUY TẮC XỬ LÝ CONTEXT (RAG):
@@ -80,17 +78,10 @@ class PhysicsRAG_PAL(dspy.Signature):
         )
     )
 
-    explanation_vi: str = dspy.OutputField(
-        desc=(
-            "Loi giai thich tieng Viet ve co so ly thuyet, hien tuong va cong thuc dai so tong quat. "
-            "TUYET DOI KHONG DUA CAC CON SO HAY PHEP TINH SO HOC VAO DAY."
-        )
-    )
-
     python_code: str = dspy.OutputField(
         desc=(
-            "Cau tinh toan (Loai A): Ma Python 3 phan bat buoc tinh toan so hoc theo cong thuc dai so "
-            "da neu o explanation_vi, gan vao final_answer va unit. "
+            "Cau tinh toan (Loai A): Ma Python 3 phan bat buoc tinh toan so hoc theo cong thuc vat ly, "
+            "gan ket qua vao final_answer va don vi vao unit. "
             "Cau ly thuyet (Loai B): Chi 2 dong: final_answer = 'chuoi ngan gon' va unit = ''. "
             "KHONG markdown, KHONG co dau ```."
         )
@@ -107,7 +98,7 @@ PhysicsPAL = PhysicsRAG_PAL
 class PhysicsSolver(dspy.Module):
     """
     Module giải bài toán vật lý theo hướng PAL kết hợp RAG Context.
-    LLM sinh extraction + explanation_vi (lý thuyết không số) + python_code (tính số).
+    LLM sinh extraction + python_code (tính số).
     Việc tính số thật sự do exec() đảm nhiệm (trong metric và wrapper).
     """
 
