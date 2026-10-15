@@ -59,7 +59,7 @@ def setup_lm():
             model=f"openai/{vllm_model_id}",
             api_base=config.LM_API_BASE,
             api_key=config.LM_API_KEY,
-            max_tokens=512,
+            max_tokens=1024,
             temperature=0.1,
         )
     else:
@@ -116,7 +116,12 @@ def setup_lm():
 
         lm = LocalTransformersLM(pipe, config.BASE_MODEL_ID)
 
-    dspy.configure(lm=lm)
+    try:
+        adapter = dspy.ChatAdapter()
+        dspy.configure(lm=lm, adapter=adapter)
+        print("[Setup] Đã kích hoạt ChatAdapter để ép sinh text/code chuẩn (không JSON wrapper).")
+    except Exception:
+        dspy.configure(lm=lm)
     print("[Setup] Mô hình đã sẵn sàng!\n")
     return lm
 

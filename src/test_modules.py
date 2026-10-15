@@ -97,7 +97,8 @@ print("\n[9] Kiem tra chuan hoa don vi Canonical...")
 from result_optimize_metric import _normalize_unit
 print(f"  'J/m**3' -> {_normalize_unit('J/m**3')} (phai la 'j/m^3')")
 print(f"  'N/C' == 'V/m': {_normalize_unit('N/C') == _normalize_unit('V/m')}")
-print(f"  '\\Omega' -> {_normalize_unit(r'\\Omega')} (phai la 'ohm')")
+omega_raw = r"\Omega"
+print(f"  '\\Omega' -> {_normalize_unit(omega_raw)} (phai la 'ohm')")
 
 # 10. Config paths
 print("\n[10] Kiem tra duong dan config...")
