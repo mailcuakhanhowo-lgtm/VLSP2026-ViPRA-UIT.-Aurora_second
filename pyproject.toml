@@ -9,6 +9,8 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "accelerate>=1.15.0",
+    "beautifulsoup4>=4.15.0",
+    "curl-cffi>=0.16.3",
     "dspy-ai>=3.4.0",
     "faiss-cpu>=1.15.1",
     "fastapi>=0.143.0",
@@ -21,9 +23,10 @@ dependencies = [
     "sentence-transformers>=6.1.0",
     "sentencepiece>=0.2.2",
     "torchvision>=0.26.0",
+    "trafilatura>=2.3.1",
     "transformers>=5.19.0",
     "uvicorn>=0.54.0",
-    "vllm>=0.6.0",
+    "vllm>=0.6.0; sys_platform != 'win32'",
 ]
 
 [project.scripts]
@@ -32,3 +35,8 @@ vlsp2026 = "vlsp2026:main"
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

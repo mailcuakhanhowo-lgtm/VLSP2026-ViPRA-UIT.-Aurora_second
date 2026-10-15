@@ -7,6 +7,9 @@ __pycache__/
 *.pyc
 *.pdf
 *.csv
+!Submission/notation_mapping.csv
 Physics Dataset Description.md
 .venv/
 submission.json
+Submission.zip
+urls.txt

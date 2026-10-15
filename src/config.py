@@ -32,7 +32,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "checkpoints")
 # ==========================================
 # 2. BASE MODEL CONFIGURATION (LLM chính)
 # ==========================================
-BASE_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+BASE_MODEL_ID = "deepseek-ai/deepseek-math-7b-instruct"
 
 # ==========================================
 # 3. RAG CONFIGURATION (Hybrid Search)
@@ -54,6 +54,17 @@ SIMILARITY_THRESHOLD = 0.75
 
 # Bật/Tắt chế độ chạy thử (Dev/Test). Đặt None để chạy toàn bộ dữ liệu.
 JUST_TEST_QUERIES = 5
+
+# --- Feynman Theory Data & Chunking Configuration ---
+FEYNMAN_RAW_DIR = os.path.join(BASE_DIR, "data", "processed", "feynman_vol_II")
+PROCESSED_THEORY_JSONL = os.path.join(DATA_DIR, "feynman_theory_chunks.jsonl")
+
+# Thông số Chunking chuyên biệt cho lý thuyết vật lý
+CHUNK_TARGET_WORDS = 350       # Số từ mục tiêu cho mỗi chunk (~450-550 tokens)
+CHUNK_MIN_WORDS = 100          # Số từ tối thiểu để tạo 1 chunk độc lập
+CHUNK_MAX_WORDS = 500          # Ngưỡng tối đa, vượt quá sẽ ngắt đoạn an toàn
+CHUNK_OVERLAP_WORDS = 60       # Độ gối đầu giữa các chunk để bảo toàn ngữ cảnh
+RAG_FALLBACK_TEXT = "Không có tài liệu tham khảo bổ sung. Hãy sử dụng các định luật vật lý tiêu chuẩn."
 
 # ==========================================
 # 4. PROMPT TEMPLATES (Qwen2.5)
@@ -85,6 +96,13 @@ LM_API_KEY  = "none"                      # vLLM không cần key thật
 
 # Sai số số học cho phép theo luật BTC
 NUMERICAL_TOLERANCE = 0.05
+
+# Cấu hình RAG Fallback & Ngưỡng tin cậy
+RAG_SIMILARITY_THRESHOLD = 0.75
+RAG_FALLBACK_TEXT = "Không có tài liệu tham khảo bổ sung. Hãy sử dụng các định luật vật lý tiêu chuẩn."
+
+# Giới hạn thời gian Sandbox an toàn (tránh treo vô tận)
+SANDBOX_TIMEOUT_SECONDS = 15.0
 
 # Giới hạn số câu đưa vào trình tối ưu (giảm nếu GPU yếu / test nhanh)
 MAX_TRAIN_EXAMPLES = 200
@@ -126,4 +144,35 @@ else:
 
 TRANSLATION_MAX_LENGTH = 256
 TRANSLATION_BATCH_SIZE = 32
+
+
+# ==========================================
+# 7. SCRAPER CONFIGURATION (Feynman Lectures & Raw Data)
+# ==========================================
+DATA_RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
+
+# Danh sách URL cần cào dữ liệu (hỗ trợ nhiều URL, mỗi URL tạo 1 thư mục riêng)
+SCRAPER_TARGET_URLS = [
+    "https://www.feynmanlectures.caltech.edu/II_toc.html",
+]
+
+# Headers giả lập trình duyệt để tránh bị máy chủ Caltech chặn 403 Forbidden
+SCRAPER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.feynmanlectures.caltech.edu/",
+}
+
+SCRAPER_DELAY = 1.0       # Thời gian nghỉ (giây) giữa các request
+SCRAPER_TIMEOUT = 30      # Timeout mỗi request (giây)
+
+# Cấu hình chuẩn hóa ký hiệu toán học (Notation Normalization)
+DATA_PROCESSED_DIR = os.path.join(BASE_DIR, "data", "processed")
+NORMALIZER_INPUT_DIR = os.path.join(DATA_RAW_DIR, "feynman_vol_II")
+NORMALIZER_OUTPUT_DIR = os.path.join(DATA_PROCESSED_DIR, "feynman_vol_II")
 
