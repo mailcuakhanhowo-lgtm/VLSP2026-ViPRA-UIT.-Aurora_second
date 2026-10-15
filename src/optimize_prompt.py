@@ -17,7 +17,7 @@ import config
 from optimize_data_loader import load_train, load_dev
 from result_optimize_solver import PhysicsSolver
 from result_optimize_metric import btc_correctness_metric
-from result_optimize_translator import translate_batch, preload as preload_translator
+from result_optimize_translator import translate_batch, preload as preload_translator, unload as unload_translator
 
 
 def setup_lm():
@@ -163,6 +163,7 @@ def run_optimization():
             for ex, q_en in zip(dev_data, dev_questions_en)
         ]
         print(f"[Optimizer] Translation done. Sample: {train_data[0].question[:80]}...\n")
+        unload_translator()
     else:
         print("[Optimizer] Translation disabled (USE_TRANSLATION=False), using Vietnamese.\n")
 

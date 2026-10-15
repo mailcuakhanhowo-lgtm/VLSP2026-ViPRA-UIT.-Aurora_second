@@ -298,3 +298,22 @@ def translate_batch(texts: list[str], use_placeholder: bool = True) -> list[str]
 def preload():
     """Nạp model vào bộ nhớ trước (gọi 1 lần khi khởi động server để tránh delay)."""
     _load_model_if_needed()
+
+
+def unload():
+    """Giải phóng bộ nhớ model dịch sau khi hoàn tất batch translation."""
+    global _tokenizer, _model, _device
+    import gc
+    import torch
+    if _model is not None:
+        del _model
+        _model = None
+    if _tokenizer is not None:
+        del _tokenizer
+        _tokenizer = None
+    _device = None
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    print("[Translator] Model unloaded and memory freed.")
+
