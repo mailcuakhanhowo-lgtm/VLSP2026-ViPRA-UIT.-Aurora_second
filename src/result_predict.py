@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import dspy
 import config
-from solver import PhysicsSolver
-from metric import clean_python_code, execute_code
-from translator import translate_vi_to_en, preload as preload_translator
+from result_optimize_solver import PhysicsSolver
+from result_optimize_metric import clean_python_code, execute_code
+from result_optimize_translator import translate_vi_to_en, preload as preload_translator
 
 
 def setup_lm():
@@ -149,34 +149,27 @@ def _format_number(val: float) -> str:
         return formatted
 
 
-def _build_reasoning_steps(extraction: str, python_code: str) -> list[str]:
+def _build_reasoning_steps(python_code: str) -> list[str]:
     """
-    Ghép extraction + từng dòng code có nghĩa thành reasoning.steps.
-    Đây là điểm ăn P3 (Reasoning Depth) của BTC.
+    Ghép từng dòng code có nghĩa thành reasoning.steps.
+    Thể hiện thuần túy các bước khai báo biến, đổi đơn vị SI và công thức đại số (P3).
     """
     steps = []
-
-    # Bước 1: Dữ kiện từ extraction
-    if extraction and extraction.strip():
-        steps.append(f"[Dữ kiện] {extraction.strip()}")
-
-    # Bước 2-3: Từng dòng code có nghĩa (bỏ dòng trống)
     for line in python_code.splitlines():
         line = line.strip()
         if not line:
             continue
         steps.append(line)
-
     return steps
 
 
-def solve(solver: PhysicsSolver, query_id: str, query: str) -> dict:
+def solve(solver: PhysicsSolver, query_id: str, query: str, context: str = None) -> dict:
     """
     Wrapper chính:
     1. (Tùy chọn) Dịch câu hỏi Vi→En bằng VinAI translate
-    2. Đưa câu hỏi vào PhysicsSolver → nhận extraction + python_code thô
-    3. Làm sạch code → exec() → lấy final_answer, unit
-    4. Ghép JSON chuẩn BTC
+    2. Đưa context và câu hỏi vào PhysicsSolver → nhận extraction, explanation_vi (lý thuyết thuần), python_code
+    3. Làm sạch code → exec() trong Sandbox (timeout 15s) → lấy final_answer, unit
+    4. Ghép JSON chuẩn BTC (P1 số chuẩn, P2 lý thuyết không số, P3 reasoning steps)
     """
     # --- Bước 1: Dịch Vi → En (nếu USE_TRANSLATION = True) ---
     if config.USE_TRANSLATION:
@@ -184,33 +177,35 @@ def solve(solver: PhysicsSolver, query_id: str, query: str) -> dict:
     else:
         question_for_llm = query
 
-    # --- Bước 2: LLM sinh code (nhận tiếng Anh, sinh python_code) ---
-    pred = solver(question=question_for_llm)
-    raw_code   = str(pred.python_code)
-    extraction = str(pred.extraction).strip()
+    # --- Bước 2: LLM sinh lý thuyết CoT và code Python ---
+    pred = solver(question=question_for_llm, context=context)
+    raw_code       = str(getattr(pred, "python_code", ""))
+    extraction     = str(getattr(pred, "extraction", "")).strip()
+    explanation_vi = str(getattr(pred, "explanation_vi", "")).strip()
 
-    # --- Wrapper: làm sạch và chạy code ---
+    # --- Bước 3: Wrapper: làm sạch và chạy code trong Sandbox có timeout 15s ---
     clean_code = clean_python_code(raw_code)
     final_answer, unit = execute_code(clean_code)
 
-    # --- Xử lý fallback nếu exec() thất bại ---
+    # --- Bước 4: Xử lý fallback nếu exec() thất bại ---
     if final_answer is None:
         answer_str = "ERROR"
         unit = ""
-        explanation = (
-            f"[Lỗi] Không thể thực thi mã Python sinh ra. "
-            f"Dữ kiện: {extraction}"
-        )
-        steps = [extraction, "[Lỗi thực thi code]", raw_code]
+        explanation = explanation_vi if explanation_vi else "[Lỗi] Không thể thực thi mã Python sinh ra."
+        steps = [f"[Dữ kiện] {extraction}", "[Lỗi thực thi code]", raw_code]
     else:
         answer_str  = _format_final_answer(final_answer)
-        explanation = (
-            f"{extraction} "
-            f"Tính bằng Python: final_answer = {answer_str} {unit}."
-        ).strip()
-        steps = _build_reasoning_steps(extraction, clean_code)
+        # explanation chuẩn BTC: ưu tiên lý thuyết thuần túy từ explanation_vi (không số)
+        if explanation_vi:
+            explanation = explanation_vi
+        else:
+            explanation = f"Áp dụng định luật vật lý tính toán: final_answer = {answer_str} {unit}.".strip()
+        
+        # reasoning.steps: thể hiện rõ ràng các bước từ dữ kiện đến từng dòng lệnh Python
+        steps = [f"[Dữ kiện] {extraction}"] if extraction else []
+        steps.extend(_build_reasoning_steps(clean_code))
 
-    # --- Ghép JSON theo đúng định dạng BTC ---
+    # --- Ghép JSON theo đúng định dạng BTC 5 trường ---
     result = {
         "query_id":    query_id,
         "answer":      answer_str,
@@ -226,15 +221,28 @@ def solve(solver: PhysicsSolver, query_id: str, query: str) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ViPRA 2026 - PAL Solver")
-    parser.add_argument("--query", type=str, required=True, help="Nội dung đề bài")
-    parser.add_argument("--id",    type=str, default="TEST001", help="Query ID")
+    parser.add_argument("--query",   type=str, required=True, help="Nội dung đề bài")
+    parser.add_argument("--id",      type=str, default="TEST001", help="Query ID")
+    parser.add_argument("--use_rag", action="store_true", default=True, help="Bật tra cứu RAG context tự động")
     args = parser.parse_args()
 
     setup_lm()
     solver = load_optimized_solver()
 
+    context = None
+    if args.use_rag:
+        try:
+            from rag_module import RAGPipeline
+            rag = RAGPipeline()
+            rag.load_indices()
+            context = rag.get_context(args.query)
+            print(f"[Predict RAG] Đã nạp context lý thuyết ({len(context)} ký tự).")
+        except Exception as e:
+            print(f"[Predict RAG] Không nạp được RAG DB ({e}). Tự động dùng fallback context.")
+            context = None
+
     print(f"\n[Query] {args.query}\n")
-    result = solve(solver, query_id=args.id, query=args.query)
+    result = solve(solver, query_id=args.id, query=args.query, context=context)
 
     output = json.dumps([result], ensure_ascii=False, indent=2)
     print("[Output JSON]")

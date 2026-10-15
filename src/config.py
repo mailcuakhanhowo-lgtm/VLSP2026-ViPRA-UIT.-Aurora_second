@@ -38,7 +38,9 @@ BASE_MODEL_ID = "deepseek-ai/deepseek-math-7b-instruct"
 # 3. RAG CONFIGURATION (Hybrid Search)
 # ==========================================
 EMBEDDING_MODEL_ID = "BAAI/bge-m3"
-EMBEDDING_DEVICE = "cuda"
+import torch
+
+EMBEDDING_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 EMBEDDING_DIMENSION = 1024
 
 VECTOR_DB_BACKEND = "faiss"                 

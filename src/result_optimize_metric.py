@@ -4,7 +4,8 @@ Chạy python_code qua exec(), lấy final_answer, so sánh với ground truth.
 """
 import re
 import math
-from config import NUMERICAL_TOLERANCE
+import concurrent.futures
+from config import NUMERICAL_TOLERANCE, SANDBOX_TIMEOUT_SECONDS
 
 
 # ============================================================
@@ -46,13 +47,16 @@ def clean_python_code(raw_code: str) -> str:
 
 
 # ============================================================
-# BƯỚC 2: Chạy code và trích xuất final_answer
+# BƯỚC 2: Chạy code và trích xuất final_answer với Timeout 15s
 # ============================================================
-def execute_code(code: str) -> tuple[any, str]:
+def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
     """
-    Chạy code trong môi trường cô lập, trả về (final_answer, unit).
-    Trả về (None, "") nếu có lỗi.
+    Chạy code trong môi trường cô lập có Timeout cứng (mặc định 15s).
+    Trả về (final_answer, unit). Trả về (None, "") nếu lỗi hoặc hết thời gian.
     """
+    if timeout is None:
+        timeout = float(SANDBOX_TIMEOUT_SECONDS)
+
     namespace = {
         "__builtins__": {
             "abs": abs, "round": round, "min": min, "max": max,
@@ -60,36 +64,63 @@ def execute_code(code: str) -> tuple[any, str]:
             "float": float, "int": int, "str": str, "print": lambda *a: None,
         },
         "math": math,
-        # Hằng số vật lý hay dùng
+        # Lượng giác tính theo ĐỘ (giúp LLM không cần đổi radians thủ công)
+        "sin_deg": lambda x: math.sin(math.radians(x)),
+        "cos_deg": lambda x: math.cos(math.radians(x)),
+        "tan_deg": lambda x: math.tan(math.radians(x)),
+        # Hằng số vật lý tiêu chuẩn BTC
         "pi": math.pi,
         "e": math.e,
         "k": 9e9,           # Hằng số Coulomb
         "eps0": 8.854e-12,  # Hằng số điện môi chân không
         "mu0": 4 * math.pi * 1e-7,  # Hằng số từ thẩm chân không
+        "g": 9.8,           # Gia tốc trọng trường chuẩn
     }
 
     try:
-        exec(compile(code, "<llm_code>", "exec"), namespace)
+        compiled_code = compile(code, "<llm_code>", "exec")
     except SyntaxError:
         return None, ""
     except Exception:
         return None, ""
 
-    final_answer = namespace.get("final_answer", None)
-    unit = str(namespace.get("unit", "")).strip()
+    def _run_exec():
+        exec(compiled_code, namespace)
+        ans = namespace.get("final_answer", None)
+        u = str(namespace.get("unit", "")).strip()
+        if u == "-":
+            u = ""
+        return ans, u
 
-    # Chuẩn hóa unit: "-" → ""
-    if unit == "-":
-        unit = ""
-
-    return final_answer, unit
+    # Chạy có Timeout cứng qua ThreadPoolExecutor
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_run_exec)
+            final_answer, unit = future.result(timeout=timeout)
+            return final_answer, unit
+    except concurrent.futures.TimeoutError:
+        print(f"[Sandbox Warning] Code chạy vượt quá {timeout}s! Đã ngắt tiến trình.")
+        return None, ""
+    except Exception:
+        return None, ""
 
 
 # ============================================================
 # BƯỚC 3: So sánh đáp án
 # ============================================================
 def _normalize_unit(unit: str) -> str:
-    return unit.strip().lower().replace(" ", "")
+    """Chuẩn hóa đơn vị Canonical: xử lý lũy thừa J/m**3 -> J/m^3, N/C == V/m, ohm."""
+    u = str(unit).strip().lower().replace(" ", "")
+    # Chuẩn hóa số mũ
+    u = u.replace("**", "^")
+    # Chuẩn hóa điện trở
+    u = u.replace(r"\omega", "ohm").replace("ω", "ohm").replace("omega", "ohm")
+    # Chuẩn hóa cường độ điện trường V/m tương đương N/C
+    if u in ("n/c", "v/m"):
+        u = "v/m"
+    if u in ("-", "none", "null", ""):
+        u = ""
+    return u
 
 
 def _compare_answers(pred_val: any, true_str: str) -> bool:

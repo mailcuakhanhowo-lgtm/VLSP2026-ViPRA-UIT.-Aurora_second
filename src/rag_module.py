@@ -19,12 +19,22 @@ class RAGPipeline:
         self.embedding_model = None
 
     # ==========================================
+    # 0. HELPER: TRÍCH XUẤT TEXT CHUẨN
+    # ==========================================
+    def _extract_corpus_texts(self, corpus_df: pd.DataFrame) -> list[str]:
+        if "text" in corpus_df.columns:
+            return corpus_df["text"].astype(str).tolist()
+        elif "question" in corpus_df.columns:
+            return corpus_df["question"].astype(str).tolist()
+        raise ValueError("DataFrame phải chứa cột 'text' hoặc 'question'.")
+
+    # ==========================================
     # 1. BUILD BM25
     # ==========================================
     def build_bm25(self, corpus_df: pd.DataFrame):
         print("[*] Building BM25 Index...")
-        questions = corpus_df['question'].tolist()
-        tokenized_corpus = [tokenize(q) for q in questions]
+        texts = self._extract_corpus_texts(corpus_df)
+        tokenized_corpus = [tokenize(t) for t in texts]
         self.bm25 = BM25Okapi(tokenized_corpus)
         
         # Lưu index
@@ -44,11 +54,11 @@ class RAGPipeline:
                 device=config.EMBEDDING_DEVICE
             )
         
-        questions = corpus_df['question'].tolist()
-        print("[*] Encoding questions to vectors...")
+        texts = self._extract_corpus_texts(corpus_df)
+        print(f"[*] Encoding {len(texts)} documents to vectors...")
         
         # Normalize để dùng với IndexFlatIP (Cosine Similarity)
-        embeddings = self.embedding_model.encode(questions, normalize_embeddings=True)
+        embeddings = self.embedding_model.encode(texts, normalize_embeddings=True)
         embeddings = np.array(embeddings).astype('float32')
         
         print("[*] Building FAISS Index...")
@@ -168,23 +178,68 @@ class RAGPipeline:
             normalized_score = score / max_possible_score
             
             if normalized_score >= config.SIMILARITY_THRESHOLD:
-                # Nếu đạt chuẩn, kéo data 4 cột ra
                 doc_data = self.metadata[doc_id]
-                retrieved_examples.append({
-                    "question": doc_data["question"],
-                    "cot": doc_data["cot"],
-                    "answer": doc_data["answer"],
-                    "unit": doc_data["unit"],
-                    "similarity": normalized_score
-                })
+                item = {"similarity": normalized_score}
+                # Tương thích linh hoạt cho cả Feynman Theory Chunks lẫn Train Problems
+                if "text" in doc_data:
+                    item["text"] = doc_data["text"]
+                    item["theory_topic"] = doc_data.get("theory_topic", "")
+                    item["chapter"] = doc_data.get("chapter", "")
+                    item["section"] = doc_data.get("section", "")
+                if "question" in doc_data:
+                    item["question"] = doc_data.get("question", "")
+                    item["cot"] = doc_data.get("cot", "")
+                    item["answer"] = doc_data.get("answer", "")
+                    item["unit"] = doc_data.get("unit", "")
+                retrieved_examples.append(item)
                 
         return retrieved_examples
 
+    # ==========================================
+    # 9. ĐÓNG GÓI CONTEXT CHO PROMPT SIGNATURE
+    # ==========================================
+    def format_rag_context(self, retrieved_examples: list[dict]) -> str:
+        """
+        Đóng gói danh sách kết quả hybrid_search thành chuỗi context chuẩn hóa
+        để cắm vào khe cắm {context} của PhysicsRAG_PAL Signature.
+        Nếu danh sách rỗng (không vượt qua ngưỡng 75%), trả về RAG_FALLBACK_TEXT.
+        """
+        if not retrieved_examples:
+            return config.RAG_FALLBACK_TEXT
+
+        context_blocks = []
+        for idx, ex in enumerate(retrieved_examples, 1):
+            if "text" in ex:
+                header = ex.get("theory_topic", f"Định luật {idx}")
+                context_blocks.append(f"[{header}]\n{ex['text']}")
+            elif "cot" in ex:
+                context_blocks.append(
+                    f"[Bài mẫu {idx}]\nĐề bài: {ex.get('question', '')}\nLời giải: {ex.get('cot', '')}"
+                )
+            elif "question" in ex:
+                context_blocks.append(f"[Kiến thức {idx}]: {ex.get('question', '')}")
+
+        return "\n\n".join(context_blocks)
+
+    def get_context(self, query: str) -> str:
+        """
+        Hàm tiện ích cấp cao:
+        Tìm kiếm Hybrid (BM25 + BGE-M3) -> Lọc ngưỡng 75% -> Trả về chuỗi context (hoặc Fallback text).
+        """
+        results = self.hybrid_search(query)
+        return self.format_rag_context(results)
+
 # Kịch bản Build DB nếu chạy file này trực tiếp
 if __name__ == "__main__":
-    train_jsonl_rag = config.PROCESSED_TRAIN_JSONL
-    print(f"[*] Reading RAG data from {train_jsonl_rag}")
-    corpus_df = pd.read_json(train_jsonl_rag, lines=True, encoding='utf-8')
+    if os.path.exists(config.PROCESSED_THEORY_JSONL):
+        rag_source = config.PROCESSED_THEORY_JSONL
+        print(f"[*] Build RAG từ Feynman Theory Chunks: {rag_source}")
+    else:
+        rag_source = config.PROCESSED_TRAIN_JSONL
+        print(f"[*] Build RAG từ Train Dataset: {rag_source}")
+
+    corpus_df = pd.read_json(rag_source, lines=True, encoding='utf-8')
+    print(f"[+] Đã nạp {len(corpus_df)} records.")
     
     pipeline = RAGPipeline()
     pipeline.build_bm25(corpus_df)
@@ -200,4 +255,9 @@ if __name__ == "__main__":
     print(f"Query: {query}")
     print(f"Tìm thấy {len(results)} bài mẫu đạt ngưỡng (Threshold={config.SIMILARITY_THRESHOLD}):")
     for i, res in enumerate(results):
-        print(f"  [{i+1}] (Điểm: {res['similarity']:.3f}) - {res['question'][:80]}...")
+        preview = res.get('text', res.get('question', ''))[:80].replace('\n', ' ')
+        print(f"  [{i+1}] (Điểm: {res['similarity']:.3f}) - {preview}...")
+
+    print("\n[*] Thử nghiệm get_context():")
+    formatted_ctx = pipeline.get_context(query)
+    print(f"Context đầu ra ({len(formatted_ctx)} ký tự):\n{formatted_ctx[:200]}...")

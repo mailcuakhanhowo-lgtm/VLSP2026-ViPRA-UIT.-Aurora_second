@@ -14,10 +14,10 @@ import dspy
 from dspy.teleprompt import MIPROv2
 
 import config
-from data_loader import load_train, load_dev
-from solver import PhysicsSolver
-from metric import btc_correctness_metric
-from translator import translate_batch, preload as preload_translator
+from optimize_data_loader import load_train, load_dev
+from result_optimize_solver import PhysicsSolver
+from result_optimize_metric import btc_correctness_metric
+from result_optimize_translator import translate_batch, preload as preload_translator
 
 
 def setup_lm():
@@ -126,21 +126,23 @@ def run_optimization():
         print("[Optimizer] Pre-translating dev set...")
         dev_questions_en   = translate_batch([ex.question for ex in dev_data])
 
-        # Tạo lại Examples với câu hỏi đã dịch sang tiếng Anh
+        # Tạo lại Examples với câu hỏi đã dịch sang tiếng Anh (giữ nguyên context)
         train_data = [
             dspy.Example(
+                context=getattr(ex, "context", config.RAG_FALLBACK_TEXT),
                 question=q_en,
                 answer=ex.answer,
                 unit=ex.unit,
-            ).with_inputs("question")
+            ).with_inputs("context", "question")
             for ex, q_en in zip(train_data, train_questions_en)
         ]
         dev_data = [
             dspy.Example(
+                context=getattr(ex, "context", config.RAG_FALLBACK_TEXT),
                 question=q_en,
                 answer=ex.answer,
                 unit=ex.unit,
-            ).with_inputs("question")
+            ).with_inputs("context", "question")
             for ex, q_en in zip(dev_data, dev_questions_en)
         ]
         print(f"[Optimizer] Translation done. Sample: {train_data[0].question[:80]}...\n")

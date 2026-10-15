@@ -45,16 +45,23 @@ def load_dataset(filepath: str, max_examples: int = None) -> list[dspy.Example]:
     for row in raw_rows:
         row = _normalize_id_key(row)
         # Chuẩn hóa unit: BTC dùng "-" cho câu không có đơn vị
-        unit = row.get("unit", "").strip()
-        if unit == "-":
-            unit = ""
+        # Chuẩn hóa context: lấy từ dữ liệu nếu có, nếu rỗng thì dùng Explicit Fallback Text
+        context = row.get("context", "").strip()
+        if not context:
+            import config
+            context = getattr(
+                config,
+                "RAG_FALLBACK_TEXT",
+                "Không có tài liệu tham khảo bổ sung. Hãy sử dụng các định luật vật lý tiêu chuẩn."
+            )
 
         ex = dspy.Example(
             query_id=row.get("id", ""),
-            question=row.get("question", ""),  # field name khop PhysicsPAL Signature
+            context=context,
+            question=row.get("question", ""),  # field name khớp PhysicsRAG_PAL Signature
             answer=row.get("answer", ""),
             unit=unit,
-        ).with_inputs("question")
+        ).with_inputs("context", "question")
 
         examples.append(ex)
 

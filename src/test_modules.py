@@ -10,15 +10,16 @@ print("=" * 50)
 # 1. Import
 print("\n[1] Kiem tra import...")
 import config; print("  OK config")
-from data_loader import load_train, load_dev; print("  OK data_loader")
-from solver import PhysicsSolver, PhysicsPAL; print("  OK solver")
-from metric import clean_python_code, execute_code, btc_correctness_metric; print("  OK metric")
+from optimize_data_loader import load_train, load_dev; print("  OK data_loader")
+from result_optimize_solver import PhysicsSolver, PhysicsPAL; print("  OK solver")
+from result_optimize_metric import clean_python_code, execute_code, btc_correctness_metric; print("  OK metric")
 
 # 2. Data loader
 print("\n[2] Kiem tra data_loader...")
 train = load_train()
 dev   = load_dev()
 ex = train[0]
+print(f"  Train[0] context  : {ex.context[:70]}...")
 print(f"  Train[0] question : {ex.question[:70]}...")
 print(f"  Train[0] answer   : {ex.answer}")
 print(f"  Train[0] unit     : {repr(ex.unit)}")
@@ -68,19 +69,50 @@ val3, unit3 = execute_code(multi_code)
 print(f"  final_answer = {val3}")
 print(f"  unit         = {repr(unit3)}")
 
-# 7. Config paths
-print("\n[7] Kiem tra duong dan config...")
+# 7. Kiem tra luong giac theo DO (sin_deg, cos_deg)
+print("\n[7] Kiem tra luong giac theo DO (sin_deg, cos_deg)...")
+trig_code = """
+F1 = 4
+F2 = 9
+alpha = 120
+# F_total = sqrt(F1**2 + F2**2 + 2*F1*F2*cos_deg(alpha))
+final_answer = round(math.sqrt(F1**2 + F2**2 + 2*F1*F2*cos_deg(alpha)), 2)
+unit = "N"
+"""
+val_trig, unit_trig = execute_code(trig_code)
+print(f"  final_answer = {val_trig} {unit_trig}")
+print(f"  Ket qua khop voi 7.81 N: {val_trig == 7.81}")
+
+# 8. Kiem tra Sandbox Timeout cung (chong treo vo han)
+print("\n[8] Kiem tra Sandbox Timeout cung (while True test)...")
+infinite_code = """
+while True:
+    pass
+"""
+val_inf, unit_inf = execute_code(infinite_code, timeout=0.5)
+print(f"  Ket qua khi gap while True: val={val_inf}, unit={repr(unit_inf)} (phai la None, '')")
+
+# 9. Kiem tra chuan hoa don vi Canonical (_normalize_unit)
+print("\n[9] Kiem tra chuan hoa don vi Canonical...")
+from result_optimize_metric import _normalize_unit
+print(f"  'J/m**3' -> {_normalize_unit('J/m**3')} (phai la 'j/m^3')")
+print(f"  'N/C' == 'V/m': {_normalize_unit('N/C') == _normalize_unit('V/m')}")
+print(f"  '\\Omega' -> {_normalize_unit(r'\\Omega')} (phai la 'ohm')")
+
+# 10. Config paths
+print("\n[10] Kiem tra duong dan config...")
 print(f"  RAW_TRAIN_CSV = {config.RAW_TRAIN_CSV}")
 print(f"  RAW_DEV_CSV   = {config.RAW_DEV_CSV}")
 print(f"  BASE_MODEL_ID = {config.BASE_MODEL_ID}")
 print(f"  LM_API_BASE   = {config.LM_API_BASE}")
 print(f"  OPTIMIZED_PROMPT_PATH = {config.OPTIMIZED_PROMPT_PATH}")
+print(f"  RAG_FALLBACK_TEXT     = {config.RAG_FALLBACK_TEXT[:50]}...")
 print(f"  Train CSV ton tai: {os.path.exists(config.RAW_TRAIN_CSV)}")
 print(f"  Dev CSV ton tai  : {os.path.exists(config.RAW_DEV_CSV)}")
 
-# 8. Kiểm tra placeholder protection (không cần download model)
-print("\n[8] Kiem tra placeholder protection (khong can model)...")
-from translator import _protect_values, _restore_values
+# 11. Kiểm tra placeholder protection (không cần download model)
+print("\n[11] Kiem tra placeholder protection (khong can model)...")
+from result_optimize_translator import _protect_values, _restore_values
 
 test_vi = "Mach noi tiep XL = 22 Ohm, XC = 198 Ohm, U = 110 V. Tang tan so 3 lan."
 protected_text, mapping = _protect_values(test_vi)
@@ -91,15 +123,12 @@ restored = _restore_values(protected_text, mapping)
 print(f"  Sau restore: {restored}")
 print(f"  Khop voi goc: {restored == test_vi}")
 
-# 9. Kiem tra translator import (khong download model - chi check module load)
-print("\n[9] Kiem tra translator module import...")
-import translator
+# 12. Kiem tra translator import
+print("\n[12] Kiem tra translator module import...")
+import result_optimize_translator as translator
 print(f"  OK translator module")
 print(f"  USE_TRANSLATION = {config.USE_TRANSLATION}")
-print(f"  TRANSLATION_MODEL_ID = {config.TRANSLATION_MODEL_ID}")
-print(f"  TRANSLATION_DEVICE = {config.TRANSLATION_DEVICE}")
-print(f"  TRANSLATION_CACHE_DIR = {config.TRANSLATION_CACHE_DIR}")
 
 print("\n" + "=" * 50)
-print("TAT CA KIEM TRA HOAN THANH")
+print("TAT CA KIEM TRA HOAN THANH - HE THONG SAN SANG")
 print("=" * 50)

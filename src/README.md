@@ -2,33 +2,47 @@
 
 Hệ thống tự động tối ưu Prompt cho bài toán giải Vật lý tiếng Việt.
 
-## Cấu trúc thư mục `src/`
+## Cấu trúc thư mục `src/` (Đã phân nhóm Pipeline)
 
 ```
 src/
-├── config.py        # Đường dẫn file CSV, tham số model và tối ưu
-├── data_loader.py   # Load train.csv + dev.csv thành DSPy Examples
-├── metric.py        # Hàm chấm điểm P1 theo đúng tiêu chí BTC (sai số 0.05)
-├── solver.py        # DSPy Signature + Module PhysicsSolver
-├── optimize.py      # Script tối ưu Prompt (MIPROv2)  <-- CHẠY CÁI NÀY TRƯỚC
-└── predict.py       # Script inference khi đi thi
+├── config.py                     # Cấu hình chung toàn hệ thống
+├── test_modules.py               # Kiểm tra nhanh các module
+│
+├── [Nhóm RAG]
+│   ├── rag_module.py             # Hybrid Search (BM25 + FAISS BGE-M3)
+│   └── rag_data_prep.py          # Tiền xử lý dữ liệu cho RAG
+│
+├── [Nhóm Dùng chung (Result & Optimize)]
+│   ├── result_optimize_solver.py     # DSPy Signature + PhysicsSolver (Loại A & B)
+│   ├── result_optimize_metric.py     # Sandbox exec() và chấm điểm P1 theo luật BTC
+│   └── result_optimize_translator.py # Dịch Vi->En (VinAI) + Placeholder Protection
+│
+├── [Nhóm Optimize Prompt]
+│   ├── optimize_data_loader.py   # Load train.csv & dev.csv thành DSPy Examples
+│   └── optimize_prompt.py        # Script tối ưu Prompt tự động (MIPROv2)
+│
+└── [Nhóm Result (Giải đề BTC)]
+    ├── result_predict.py         # Script API / Inference xuất JSON chuẩn BTC
+    ├── result_test_from_dev.py   # Chạy test hàng loạt trên tập Dev
+    ├── result_llm_engine.py      # Engine sinh văn bản
+    └── result_evaluate_with_llm.py # Đánh giá LLM-as-a-judge
 ```
 
 ## Hướng dẫn sử dụng
 
 ### Bước 1: Cấu hình model
-Mở [config.py](config.py) và chỉnh `LM_MODEL_ID` + `LM_API_BASE` cho phù hợp với vLLM của anh.
+Mở [config.py](config.py) và chỉnh `LM_MODEL_ID` + `LM_API_BASE` cho phù hợp với vLLM.
 
-### Bước 2: Chạy tối ưu Prompt (bấm 1 lần, đi uống cà phê)
+### Bước 2: Chạy tối ưu Prompt
 ```bash
-uv run python src/optimize.py
+uv run python src/optimize_prompt.py
 ```
-> Quá trình này chạy khoảng **1-2 tiếng** tùy GPU.  
 > Kết quả được lưu tự động tại `output/optimized_prompt.json`.
 
 ### Bước 3: Thử giải bài toán mới
 ```bash
-uv run python src/predict.py --id "TD401" --query "Tính năng lượng điện trường tích trữ trong tụ C khi C = 100 μF dưới U = 30 V"
+uv run python src/result_predict.py --id "TD401" --query "Tính năng lượng điện trường tích trữ trong tụ C khi C = 100 μF dưới U = 30 V"
 ```
 
 ## Vai trò của 2 file CSV

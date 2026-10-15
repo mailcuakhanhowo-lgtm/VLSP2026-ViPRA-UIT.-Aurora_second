@@ -5,7 +5,7 @@ import re
 from tqdm import tqdm
 import config
 from rag_module import RAGPipeline
-from llm_engine import LLMEngine
+from result_llm_engine import LLMEngine
 
 def build_few_shot_block(rag_examples):
     if not rag_examples: 
