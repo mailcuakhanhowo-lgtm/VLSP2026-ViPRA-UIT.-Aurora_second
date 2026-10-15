@@ -35,11 +35,28 @@ def setup_lm():
     except Exception:
         has_vllm = False
 
+    vllm_model_id = config.BASE_MODEL_ID
     if has_vllm:
+        import json
+        try:
+            req = urllib.request.Request(f"{config.LM_API_BASE}/models", headers={"Authorization": f"Bearer {config.LM_API_KEY}"})
+            with urllib.request.urlopen(req, timeout=2) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode())
+                    if data.get("data") and len(data["data"]) > 0:
+                        detected_model = data["data"][0]["id"]
+                        if detected_model != config.BASE_MODEL_ID:
+                            print(f"[Cảnh báo] vLLM đang chạy model: {detected_model}")
+                            print(f"[Cảnh báo] Nhưng config.py ghi: {config.BASE_MODEL_ID}")
+                            print(f"[Setup] Tự động đồng bộ dùng model đang chạy: {detected_model}")
+                            vllm_model_id = detected_model
+        except Exception:
+            pass
+
         print(f"[Setup] Phát hiện vLLM server đang chạy tại: {config.LM_API_BASE}")
-        print(f"[Setup] Kết nối tới model: {config.BASE_MODEL_ID}")
+        print(f"[Setup] Kết nối tới model: {vllm_model_id}")
         lm = dspy.LM(
-            model=f"openai/{config.BASE_MODEL_ID}",
+            model=f"openai/{vllm_model_id}",
             api_base=config.LM_API_BASE,
             api_key=config.LM_API_KEY,
             max_tokens=512,
