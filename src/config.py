@@ -152,17 +152,19 @@ else:
     TRANSLATION_CACHE_DIR = os.path.join(BASE_DIR, "models", "vinai-translate")
 
 # Tự động chia tải GPU:
-# Nếu có 2 GPU (Kaggle T4 x2): Đẩy translator sang GPU 1 (cuda:1) để GPU 0 rảnh tải cho LLM
-# Nếu chỉ có 1 GPU (RTX 3090): GPU 0 đã dành trọn cho vLLM (DeepSeek 7B).
-# Dùng CPU cho model dịch nhẹ (~400M) để không tranh chấp VRAM gây CUDA OOM!
+# Nếu có 2 GPU (Kaggle T4 x2): Đẩy translator sang GPU 1 (cuda:1)
+# Nếu có 1 GPU (RTX 3090): Dùng cuda:0 (float16 chỉ tốn ~400MB VRAM, dịch siêu tốc ~3-5s rồi tự động unload)
 import torch
-if torch.cuda.is_available() and torch.cuda.device_count() > 1:
-    TRANSLATION_DEVICE = "cuda:1"
+if torch.cuda.is_available():
+    if torch.cuda.device_count() > 1:
+        TRANSLATION_DEVICE = "cuda:1"
+    else:
+        TRANSLATION_DEVICE = "cuda:0"
 else:
     TRANSLATION_DEVICE = "cpu"
 
 TRANSLATION_MAX_LENGTH = 256
-TRANSLATION_BATCH_SIZE = 16
+TRANSLATION_BATCH_SIZE = 32
 
 
 # ==========================================

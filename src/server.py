@@ -26,9 +26,9 @@ if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
 import config
-from solver import PhysicsSolver
-from metric import clean_python_code, execute_code
-from translator import translate_vi_to_en, preload as preload_translator
+from result_optimize_solver import PhysicsSolver
+from result_optimize_metric import clean_python_code, execute_code
+from result_optimize_translator import translate_vi_to_en, preload as preload_translator
 
 # Cấu hình logging
 logging.basicConfig(
