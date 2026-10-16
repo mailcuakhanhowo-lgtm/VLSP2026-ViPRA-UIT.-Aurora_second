@@ -200,7 +200,7 @@ def translate_vi_to_en(text: str, use_placeholder: bool = True) -> str:
         outputs = _model.generate(
             **inputs,
             decoder_start_token_id=_tokenizer.lang_code_to_id["en_XX"],
-            num_beams=4,
+            num_beams=getattr(config, "TRANSLATION_NUM_BEAMS", 2),
             max_length=config.TRANSLATION_MAX_LENGTH,
             early_stopping=True,
         )
@@ -266,7 +266,7 @@ def translate_batch(texts: list[str], use_placeholder: bool = True) -> list[str]
             outputs = _model.generate(
                 **inputs,
                 decoder_start_token_id=_tokenizer.lang_code_to_id["en_XX"],
-                num_beams=4,
+                num_beams=getattr(config, "TRANSLATION_NUM_BEAMS", 2),
                 max_length=config.TRANSLATION_MAX_LENGTH,
                 early_stopping=True,
             )

@@ -23,6 +23,7 @@ else:
     RAW_TRAIN_CSV = os.path.join(DATA_DIR, "train_dataset.csv")
     RAW_VAL_CSV = os.path.join(DATA_DIR, "val_dataset.csv")
     RAW_DEV_CSV = os.path.join(DATA_DIR, "dev_dataset.csv")
+    RAW_TEST_CSV = os.path.join(DATA_DIR, "test_dataset.csv")
 
 # --- File Processed ---
 PROCESSED_TRAIN_JSONL = os.path.join(DATA_DIR, "train_processed.jsonl")
@@ -153,18 +154,16 @@ else:
 
 # Tự động chia tải GPU:
 # Nếu có 2 GPU (Kaggle T4 x2): Đẩy translator sang GPU 1 (cuda:1)
-# Nếu có 1 GPU (RTX 3090): Dùng cuda:0 (float16 chỉ tốn ~400MB VRAM, dịch siêu tốc ~3-5s rồi tự động unload)
+# Nếu có 1 GPU (RTX 3090): Dùng CPU để tuyệt đối không tranh chấp VRAM với vLLM (tránh CUDA OOM)!
 import torch
-if torch.cuda.is_available():
-    if torch.cuda.device_count() > 1:
-        TRANSLATION_DEVICE = "cuda:1"
-    else:
-        TRANSLATION_DEVICE = "cuda:0"
+if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+    TRANSLATION_DEVICE = "cuda:1"
 else:
     TRANSLATION_DEVICE = "cpu"
 
 TRANSLATION_MAX_LENGTH = 256
-TRANSLATION_BATCH_SIZE = 32
+TRANSLATION_BATCH_SIZE = 16
+TRANSLATION_NUM_BEAMS = 2   # Beam size 2 tối ưu tốc độ CPU gấp 4 lần mà vẫn giữ chất lượng dịch cao
 
 
 # ==========================================
