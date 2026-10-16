@@ -74,11 +74,12 @@ def init_solver() -> Optional[PhysicsSolver]:
     """Khởi tạo PhysicsSolver tiêu chuẩn."""
     try:
         import urllib.request
-        # Chỉ nạp model nếu phát hiện vLLM server đang chạy thật sự
-        req = urllib.request.Request(f"{config.LM_API_BASE}/models", headers={"Authorization": f"Bearer {config.LM_API_KEY}"})
-        with urllib.request.urlopen(req, timeout=1) as response:
+        # Ép dùng IPv4 127.0.0.1 để tránh lỗi phân giải IPv6 ::1 trên Linux
+        api_base = getattr(config, "LM_API_BASE", "http://127.0.0.1:8000/v1").replace("localhost", "127.0.0.1")
+        req = urllib.request.Request(f"{api_base}/models", headers={"Authorization": f"Bearer {config.LM_API_KEY}"})
+        with urllib.request.urlopen(req, timeout=3) as response:
             if response.status == 200:
-                from optimize import setup_lm
+                from optimize_prompt import setup_lm
                 setup_lm()
                 solver = PhysicsSolver()
                 logger.info("Kết nối vLLM thành công!")
@@ -89,10 +90,10 @@ def init_solver() -> Optional[PhysicsSolver]:
                     except Exception as pe:
                         logger.warning(f"Không thể load prompt tối ưu: {pe}. Sử dụng base solver.")
                 return solver
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Lỗi khi kết nối tới vLLM ({config.LM_API_BASE}): {e}")
 
-    logger.info("Chưa bật vLLM server. Khởi động server ở chế độ TEST/VERIFICATION (Sẵn sàng ngay trong 1s)!")
+    logger.info("Chưa bật vLLM server hoặc chưa nạp xong. Khởi động server ở chế độ TEST/VERIFICATION!")
     return None
 
 
@@ -182,6 +183,9 @@ def _build_reasoning_steps(extraction: str, clean_code: str) -> List[str]:
 @app.get("/health", summary="Kiểm tra trạng thái server")
 def health_check():
     """Endpoint xác nhận server đang trực tuyến."""
+    global solver_instance
+    if solver_instance is None:
+        solver_instance = init_solver()
     return {
         "status": "healthy",
         "solver_loaded": solver_instance is not None,
@@ -195,8 +199,9 @@ def get_vllm_models():
     """Proxy trực tiếp tới vLLM localhost:8000/v1/models để BTC kiểm tra model ID."""
     import urllib.request
     try:
+        api_base = getattr(config, "LM_API_BASE", "http://127.0.0.1:8000/v1").replace("localhost", "127.0.0.1")
         req = urllib.request.Request(
-            f"{config.LM_API_BASE}/models",
+            f"{api_base}/models",
             headers={"Authorization": f"Bearer {config.LM_API_KEY}"}
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
@@ -229,6 +234,8 @@ async def predict_endpoint(payload: PredictInput):
     Trả về: Danh sách JSON 1 phần tử theo Mục 4.1.
     """
     global solver_instance
+    if solver_instance is None:
+        solver_instance = init_solver()
     query_id = payload.query_id.strip()
     query = payload.query.strip()
 

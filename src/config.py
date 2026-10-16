@@ -111,7 +111,7 @@ OPTIMIZED_EXPLAINER_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_explainer.js
 OPTIMIZED_HYDE_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_hyde.json")
 
 # Cấu hình Language Model cho DSPy (trỏ tới vLLM local)
-LM_API_BASE = "http://localhost:8000/v1"  # Endpoint vLLM local
+LM_API_BASE = "http://127.0.0.1:8000/v1"  # Endpoint vLLM local (dùng 127.0.0.1 để tránh lỗi IPv6 ::1)
 LM_API_KEY  = "none"                      # vLLM không cần key thật
 # LM_MODEL_ID dùng lại BASE_MODEL_ID đã khai báo ở trên
 
