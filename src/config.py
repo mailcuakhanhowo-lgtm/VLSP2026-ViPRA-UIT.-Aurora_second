@@ -30,9 +30,17 @@ PROCESSED_HOLDOUT_JSONL = os.path.join(DATA_DIR, "holdout_val.jsonl")
 OUTPUT_DIR = os.path.join(BASE_DIR, "checkpoints")
 
 # ==========================================
-# 2. BASE MODEL CONFIGURATION (LLM chính)
+# 2. BASE MODEL CONFIGURATION (LLM chính - Stage 1 Solver)
 # ==========================================
 BASE_MODEL_ID = "deepseek-ai/deepseek-math-7b-instruct"
+
+# ==========================================
+# 2.1 EXPLAINER MODEL CONFIGURATION (Stage 2 Explainer - Tiếng Việt)
+# ==========================================
+EXPLAINER_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+EXPLAINER_API_BASE = "http://localhost:8000/v1"
+EXPLAINER_API_KEY  = "none"
+USE_EXPLAINER = True
 
 # ==========================================
 # 3. RAG CONFIGURATION (Hybrid Search)
@@ -90,6 +98,7 @@ ASSISTANT_PREFILL = "Sau đây là câu trả lời chi tiết với 4 phần th
 # Đường dẫn lưu Prompt đã tối ưu (output của optimize.py)
 DSPY_OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 OPTIMIZED_PROMPT_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_prompt.json")
+OPTIMIZED_EXPLAINER_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_explainer.json")
 
 # Cấu hình Language Model cho DSPy (trỏ tới vLLM local)
 LM_API_BASE = "http://localhost:8000/v1"  # Endpoint vLLM local

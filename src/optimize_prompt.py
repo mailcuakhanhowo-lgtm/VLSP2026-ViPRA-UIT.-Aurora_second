@@ -11,6 +11,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import dspy
+import torch
 from dspy.teleprompt import MIPROv2
 
 import config
@@ -139,6 +140,36 @@ def run_optimization():
     train_data = load_train()
     dev_data   = load_dev()
     print(f"[Optimizer] Train: {len(train_data)} | Dev: {len(dev_data)}\n")
+
+    # --- 1.5. RAG Pre-Retrieval: Trích xuất lý thuyết Feynman gắn vào context (Dữ liệu tham khảo cố định) ---
+    print("[Optimizer] Đang chạy RAG trích xuất lý thuyết Feynman gắn vào context...")
+    try:
+        from rag_module import RAGPipeline
+        rag = RAGPipeline()
+        rag.load_indices()
+        hit_train = 0
+        for ex in train_data:
+            ctx = rag.get_context(ex.question)
+            ex.context = ctx
+            if ctx != config.RAG_FALLBACK_TEXT:
+                hit_train += 1
+
+        hit_dev = 0
+        for ex in dev_data:
+            ctx = rag.get_context(ex.question)
+            ex.context = ctx
+            if ctx != config.RAG_FALLBACK_TEXT:
+                hit_dev += 1
+
+        print(f"[Optimizer] RAG hoàn tất: {hit_train}/{len(train_data)} câu Train và {hit_dev}/{len(dev_data)} câu Dev tìm thấy lý thuyết khớp >= 75%.")
+        del rag
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception as e:
+        print(f"[Optimizer Cảnh báo] Không thể chạy RAG ({e}). Sử dụng RAG_FALLBACK_TEXT.")
+
 
     # --- 2. Pre-translate Vi → En (1 lần duy nhất, batch cho nhanh) ---
     if config.USE_TRANSLATION:
