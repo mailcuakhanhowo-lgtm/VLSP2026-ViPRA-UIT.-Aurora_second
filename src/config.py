@@ -104,6 +104,7 @@ ASSISTANT_PREFILL = "Sau đây là câu trả lời chi tiết với 4 phần th
 DSPY_OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 OPTIMIZED_PROMPT_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_prompt.json")
 OPTIMIZED_EXPLAINER_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_explainer.json")
+OPTIMIZED_HYDE_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_hyde.json")
 
 # Cấu hình Language Model cho DSPy (trỏ tới vLLM local)
 LM_API_BASE = "http://localhost:8000/v1"  # Endpoint vLLM local

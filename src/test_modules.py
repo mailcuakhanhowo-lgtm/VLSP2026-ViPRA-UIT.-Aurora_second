@@ -176,6 +176,35 @@ print(f"  Query sau HyDE: {expanded}")
 assert len(expanded) >= len(test_q), "HyDE query expansion khong hop le!"
 print("  OK HyDE RAG expansion")
 
+# 16. Kiem tra Hybrid search threshold & top BM25 fallback
+print("\n[16] Kiem tra RAG hybrid_search threshold & BM25 fallback...")
+rag_mock = RAGPipeline()
+rag_mock.metadata = [
+    {"text": "Faraday induction law text", "theory_topic": "Faraday"},
+    {"text": "Coulomb law text", "theory_topic": "Coulomb"}
+]
+# Gia lap BM25 va Semantic ket qua
+rag_mock.bm25_search = lambda q: [{"doc_id": 0, "score": 12.5}]
+rag_mock.semantic_search = lambda q: [{"doc_id": 1, "score": 0.40}]  # dưới 0.50
+# rrf se tra ve [0, 1]
+res = rag_mock.hybrid_search("faraday", use_hyde=False)
+print(f"  Ket qua hybrid_search khi semantic < 0.50 nhung doc_id 0 thuoc top BM25: {len(res)} ket qua")
+assert len(res) == 1 and res[0]["text"] == "Faraday induction law text", "BM25 fallback filtering fail!"
+print("  OK BM25 top candidate retention")
+
+# 17. Kiem tra BM25 Regex Tokenize
+print("\n[17] Kiem tra BM25 Regex Tokenize...")
+from rag_module import tokenize
+sample_raw = "(Faraday's, 100uF,, E=mc^2; Mạch RLC: U = 220V."
+tokens = tokenize(sample_raw)
+print(f"  Raw: {sample_raw}")
+print(f"  Tokens: {tokens}")
+assert "faraday" in tokens, "BM25 tokenize phai tach duoc 'faraday'!"
+assert "100uf" in tokens, "BM25 tokenize phai giu duoc '100uf'!"
+assert "mạch" in tokens and "rlc" in tokens, "BM25 tokenize phai ho tro tieng Viet!"
+print("  OK BM25 Regex Tokenize")
+
 print("\n" + "=" * 50)
 print("TAT CA KIEM TRA HOAN THANH - HE THONG SAN SANG 100%")
 print("=" * 50)
+

@@ -1,4 +1,5 @@
 import os
+import re
 import pickle
 import pandas as pd
 import numpy as np
@@ -6,8 +7,35 @@ from rank_bm25 import BM25Okapi
 import config
 
 def tokenize(text: str):
-    """Hàm tokenize đơn giản (cắt khoảng trắng và viết thường)"""
-    return str(text).lower().split()
+    """
+    Hàm tokenize tối ưu cho BM25 trong Hybrid RAG:
+    - Chuyển về chữ thường.
+    - Thay thế mọi ký tự không phải chữ/số/Unicode (\w) hoặc khoảng trắng (\s) thành dấu cách.
+      Loại bỏ dấu câu dính liền: '(Faraday\'s,' -> ['faraday', 's'], '100uF,,' -> ['100uf'].
+    - Giữ nguyên tiếng Việt có dấu (Unicode) và các ký hiệu số học/khoa học độc lập.
+    """
+    text = str(text).lower()
+    text = re.sub(r'[^\w\s]', ' ', text)
+    return text.split()
+
+_optimized_hyde_module = None
+
+def get_optimized_hyde_module():
+    """Nạp module PhysicsHyDE đã tối ưu từ file JSON nếu có."""
+    global _optimized_hyde_module
+    if _optimized_hyde_module is None:
+        ckpt_path = getattr(config, "OPTIMIZED_HYDE_PATH", "")
+        if ckpt_path and os.path.exists(ckpt_path):
+            try:
+                from optimize_hyde import PhysicsHyDE
+                mod = PhysicsHyDE()
+                mod.load(ckpt_path)
+                _optimized_hyde_module = mod
+                print(f"[RAG HyDE] Đã nạp Optimized HyDE từ: {ckpt_path}")
+            except Exception:
+                pass
+    return _optimized_hyde_module
+
 
 class RAGPipeline:
     def __init__(self):
@@ -169,10 +197,24 @@ class RAGPipeline:
         if not getattr(config, "USE_HYDE", False):
             return query
 
+        # Ưu tiên 1: Dùng DSPy HyDE Module với Prompt tối ưu từ checkpoint MIPROv2
+        try:
+            import dspy
+            if getattr(dspy.settings, "lm", None) is not None:
+                hyde_mod = get_optimized_hyde_module()
+                if hyde_mod is not None:
+                    pred = hyde_mod(question=query)
+                    kw = str(getattr(pred, "physics_keywords", "")).strip()
+                    if kw:
+                        return f"{query} {kw}"
+        except Exception:
+            pass
+
+        # Ưu tiên 2: Gọi trực tiếp vLLM qua API nếu chưa nạp DSPy Module
         try:
             import socket
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.2)
+            sock.settimeout(3.0)
             try:
                 sock.connect(("127.0.0.1", 8000))
                 sock.close()
@@ -183,8 +225,10 @@ class RAGPipeline:
             import urllib.request
 
             prompt = (
-                f"Chỉ nêu tên định luật và các đại lượng vật lý cần dùng để giải bài toán sau, không giải bài: {query.strip()}\n"
-                "Trả lời thật ngắn gọn dưới 30 từ:"
+                "Identify the relevant electromagnetism physics laws, principles, formulas, and terminology for this problem in ENGLISH.\n"
+                "Provide ONLY concise English keywords and algebraic formulas (e.g., Ohm's law, Joule heating, P = I^2*R). Do NOT solve the problem.\n\n"
+                f"Problem: {query.strip()}\n"
+                "English keywords and formulas:"
             )
             payload = {
                 "model": config.BASE_MODEL_ID,
@@ -205,7 +249,7 @@ class RAGPipeline:
             )
             proxy_handler = urllib.request.ProxyHandler({})
             opener = urllib.request.build_opener(proxy_handler)
-            with opener.open(req, timeout=1.0) as resp:
+            with opener.open(req, timeout=3.0) as resp:
                 if resp.status == 200:
                     res_json = json.loads(resp.read().decode("utf-8"))
                     keywords = res_json["choices"][0]["message"]["content"].strip()
@@ -221,31 +265,34 @@ class RAGPipeline:
     # ==========================================
     def hybrid_search(self, query: str, use_hyde: bool = True):
         """Hàm duy nhất cần gọi khi có câu hỏi mới từ BTC"""
-        # 0. Mở rộng câu hỏi bằng kỹ thuật HyDE (chuyển truy xuất bất đối xứng thành đối xứng)
+        # 0. Mở rộng câu hỏi bằng kỹ thuật HyDE sang từ khóa tiếng Anh
         search_query = self.expand_query_with_hyde(query) if use_hyde else query
 
-        # 1. Chạy 2 luồng song song
+        # 1. Chạy 2 luồng song song (BM25 từ khóa + BGE-M3 ngữ nghĩa đa ngữ)
         bm25_res = self.bm25_search(search_query)
         dense_res = self.semantic_search(search_query)
         
-        # 2. Hợp nhất bằng RRF
+        # Lưu map Cosine Similarity thực tế từ BGE-M3 (thang đo chuẩn [0.0, 1.0])
+        dense_sim_map = {res["doc_id"]: res["score"] for res in dense_res}
+        
+        # 2. Hợp nhất bằng RRF (Reciprocal Rank Fusion) để xếp hạng tối ưu
         fused_results = self.rrf(bm25_res, dense_res)
         
         # 3. Lấy Top-K bài mẫu có điểm cao nhất
         final_top = fused_results[:config.FINAL_TOP_K]
         
-        # 4. Áp dụng Threshold (Ngưỡng RAG)
-        # Điểm RRF tối đa cho 1 bài nếu đứng top 1 ở cả 2 luồng: 1/(60+1) + 1/(60+1) ~ 0.0327
-        # Do đó ta chuẩn hóa điểm (max = 1.0) để so với Threshold
-        max_possible_score = 2.0 / (config.RRF_K + 1) 
+        # 4. Top ID từ BM25 (top 3) để bảo vệ các tài liệu khớp chính xác từ khóa vật lý
+        top_bm25_ids = {res["doc_id"] for res in bm25_res[:3]}
         
+        # 5. Áp dụng Threshold lọc độ tin cậy: Cosine Similarity >= Threshold HOẶC nằm trong Top BM25
         retrieved_examples = []
-        for doc_id, score in final_top:
-            normalized_score = score / max_possible_score
+        for doc_id, rrf_score in final_top:
+            cos_sim = float(dense_sim_map.get(doc_id, 0.0))
             
-            if normalized_score >= config.SIMILARITY_THRESHOLD:
+            # Lọc: Chấp nhận nếu điểm ngữ nghĩa cao HOẶC từ khóa khớp mạnh ở Top BM25
+            if cos_sim >= config.SIMILARITY_THRESHOLD or doc_id in top_bm25_ids:
                 doc_data = self.metadata[doc_id]
-                item = {"similarity": normalized_score}
+                item = {"similarity": round(cos_sim, 4) if cos_sim > 0.0 else round(float(rrf_score), 4)}
                 # Tương thích linh hoạt cho cả Feynman Theory Chunks lẫn Train Problems
                 if "text" in doc_data:
                     item["text"] = doc_data["text"]
