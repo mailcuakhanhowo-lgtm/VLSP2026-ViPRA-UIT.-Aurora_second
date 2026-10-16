@@ -1,6 +1,6 @@
 """
 result_explainer.py - Module sinh Lời giải thích (Explanation) chuẩn sư phạm cho BTC ViPRA 2026.
-Sử dụng: Qwen/Qwen2.5-7B-Instruct (Stage 2 Explainer).
+Sử dụng: deepseek-ai/deepseek-math-7b-instruct (Dùng chung cho cả 2 Stage).
 Tận dụng: Đề bài tiếng Việt + Tri thức RAG từ sách Feynman + Đáp án từ Solver.
 """
 
@@ -39,13 +39,72 @@ class PhysicsExplainer(dspy.Module):
         super().__init__()
         self.predictor = dspy.Predict(PhysicsExplainerSignature)
 
-    def forward(self, question: str, context: str, answer: str, unit: str):
-        return self.predictor(question=question, context=context, answer=answer, unit=unit)
+    def forward(self, question: str, context: str = None, answer: str = "", unit: str = ""):
+        if not context:
+            import config
+            context = getattr(
+                config,
+                "RAG_FALLBACK_TEXT",
+                "Không có tài liệu tham khảo bổ sung. Hãy sử dụng các định luật vật lý tiêu chuẩn."
+            )
+        return self.predictor(
+            question=question,
+            context=context,
+            answer=str(answer or ""),
+            unit=str(unit or ""),
+        )
 
 
-# ============================================================
-# PROMPT TEMPLATE DÀNH CHO GIÁO VIÊN VẬT LÝ SƯ PHẠM (Qwen2.5-7B)
-# ============================================================
+_explainer_module = None
+
+def get_optimized_explainer() -> PhysicsExplainer:
+    """Nạp module PhysicsExplainer kèm checkpoint đã tối ưu (nếu có)."""
+    global _explainer_module
+    if _explainer_module is None:
+        explainer = PhysicsExplainer()
+        ckpt_path = getattr(config, "OPTIMIZED_EXPLAINER_PATH", "")
+        if ckpt_path and os.path.exists(ckpt_path):
+            try:
+                explainer.load(ckpt_path)
+                print(f"[Explainer] Đã nạp thành công Optimized Explainer từ: {ckpt_path}")
+            except Exception as e:
+                print(f"[Explainer Cảnh báo] Không thể nạp checkpoint ({e}), dùng Signature mặc định.")
+        _explainer_module = explainer
+    return _explainer_module
+
+
+# ==========================================
+# PROMPT TEMPLATE DÀNH CHO GIÁO VIÊN VẬT LÝ SƯ PHẠM (DeepSeek-Math-7B)
+# ==========================================
+
+# Template Tiếng Anh: DeepSeek sinh lời giải thích lý thuyết thuần túy & công thức LaTeX (không số)
+EXPLAINER_SYSTEM_PROMPT_EN = (
+    "You are an expert physics educator. Your task is to provide a concise, rigorous, "
+    "and pedagogical explanation of the physical phenomena, governing physical laws, "
+    "and algebraic formulas in LaTeX ($...$). "
+    "Never perform arithmetic calculations or substitute numbers into formulas."
+)
+
+EXPLAINER_USER_TEMPLATE_EN = """Write a concise physical explanation (2 to 3 sentences) in English for the following physics problem.
+
+[PROBLEM]:
+{question}
+
+[THEORY CONTEXT]:
+{context}
+
+[TARGET RESULT]:
+Answer: {answer}{unit}
+
+[MANDATORY REQUIREMENTS]:
+1. State the core physical phenomenon and explicitly identify the governing physical law, theorem, or principle applied.
+2. Provide the general algebraic formula using LaTeX format ($...$).
+3. STRICTLY FORBIDDEN: Do NOT perform arithmetic calculations or substitute numerical values into the formula. Focus purely on physical theory and algebraic relationships leading to the target result.
+4. Keep the explanation concise and direct (2-3 sentences). No greeting, no conversational fillers.
+
+Concise Physical Explanation:"""
+
+# Template Tiếng Việt dự phòng (dùng khi tắt translation hoặc chạy trực tiếp)
 EXPLAINER_SYSTEM_PROMPT = (
     "Bạn là Chuyên gia Vật lý và Giáo viên bộ môn Vật lý xuất sắc. "
     "Nhiệm vụ của bạn là giải thích bản chất vật lý, hiện tượng và công thức áp dụng "
@@ -105,7 +164,7 @@ def _call_vllm_api(prompt_messages: list, max_tokens: int = 512, temperature: fl
 
 
 def _call_local_transformers(prompt_messages: list, max_tokens: int = 512) -> str:
-    """Nạp Qwen2.5-7B qua Hugging Face Pipeline nếu không có server vLLM."""
+    """Nạp DeepSeek-Math-7B qua Hugging Face Pipeline nếu không có server vLLM."""
     global _local_pipe
     if _local_pipe is None:
         import torch
@@ -136,52 +195,96 @@ def generate_explanation(
     context: str = None,
     answer: str = "",
     unit: str = "",
+    question_en: str = None,
 ) -> str:
     """
     Hàm chính tạo trường 'explanation' chuẩn BTC:
-    - Nhận câu hỏi tiếng Việt, context từ RAG, và đáp án/đơn vị từ Solver.
-    - Sinh đoạn văn lý thuyết tiếng Việt 2-4 câu chuẩn LaTeX.
-    - Có cơ chế Fallback an toàn (không bao giờ để trống theo luật BTC).
+    - DeepSeek-Math-7B sinh lời giải thích bằng TIẾNG ANH (tối ưu tư duy toán/vật lý & công thức LaTeX, tuyệt đối không tính số).
+    - Dùng vinai-translate-en2vi-v2 dịch lời giải thích sang TIẾNG VIỆT trước khi nộp BTC.
+    - Bảo toàn 100% công thức LaTeX ($...$) qua cơ chế Placeholder Protection bằng Python.
+    - Có Fallback an toàn (không bao giờ để trống trường explanation).
     """
     if not config.USE_EXPLAINER:
         return _fallback_explanation(answer, unit)
 
     if not context or context == getattr(config, "RAG_FALLBACK_TEXT", ""):
-        context_str = "Sử dụng các định luật và công thức vật lý chuẩn trong chương trình Điện và Từ học."
+        context_str = "Standard physical laws and principles in electromagnetism."
     else:
         # Cắt ngắn context RAG nếu quá dài để tiết kiệm context window
         context_str = context[:1500]
 
     unit_display = f" {unit}" if unit else ""
-    user_prompt = EXPLAINER_USER_TEMPLATE.format(
+
+    # ============================================================
+    # LUỒNG CHÍNH: DeepSeek (7B) sinh Tiếng Anh → VinAI dịch sang Tiếng Việt
+    # ============================================================
+    if getattr(config, "USE_TRANSLATION", True):
+        try:
+            from result_optimize_translator import translate_en_to_vi, translate_vi_to_en
+
+            # Ưu tiên lấy câu hỏi tiếng Anh đã có sẵn từ Solver (tránh dịch lại lần 2)
+            q_en = question_en.strip() if question_en else translate_vi_to_en(question)
+
+            user_prompt_en = EXPLAINER_USER_TEMPLATE_EN.format(
+                question=q_en,
+                context=context_str.strip(),
+                answer=str(answer).strip(),
+                unit=unit_display,
+            )
+            messages_en = [
+                {"role": "system", "content": EXPLAINER_SYSTEM_PROMPT_EN},
+                {"role": "user", "content": user_prompt_en},
+            ]
+
+            # Bước A: DeepSeek-Math-7B sinh lời giải thích tiếng Anh (vLLM hoặc Transformers)
+            exp_en = ""
+            try:
+                exp_en = _call_vllm_api(messages_en)
+            except Exception:
+                try:
+                    exp_en = _call_local_transformers(messages_en)
+                except Exception:
+                    exp_en = ""
+
+            # Bước B: Dịch lời giải thích tiếng Anh sang tiếng Việt qua VinAI (có bảo vệ LaTeX bằng Python)
+            if exp_en and len(exp_en) >= 20:
+                exp_vi = translate_en_to_vi(exp_en)
+                if exp_vi and len(exp_vi) >= 15:
+                    return exp_vi
+        except Exception:
+            pass
+
+    # ============================================================
+    # LUỒNG DỰ PHÒNG: Sinh Tiếng Việt trực tiếp (nếu tắt translation hoặc lỗi dịch)
+    # ============================================================
+    user_prompt_vi = EXPLAINER_USER_TEMPLATE.format(
         question=question.strip(),
         context=context_str.strip(),
         answer=str(answer).strip(),
         unit=unit_display,
     )
-
-    messages = [
+    messages_vi = [
         {"role": "system", "content": EXPLAINER_SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt},
+        {"role": "user", "content": user_prompt_vi},
     ]
 
-    # Ưu tiên 1: Gọi vLLM API
+    # Ưu tiên dự phòng 1: Gọi vLLM trực tiếp
     try:
-        explanation = _call_vllm_api(messages)
-        if explanation:
+        explanation = _call_vllm_api(messages_vi)
+        if explanation and len(explanation) >= 20:
             return explanation
     except Exception:
         pass
 
-    # Ưu tiên 2: Gọi Transformers Local nếu không có vLLM
+    # Ưu tiên dự phòng 2: Gọi Transformers Local
     try:
-        explanation = _call_local_transformers(messages)
-        if explanation:
+        explanation = _call_local_transformers(messages_vi)
+        if explanation and len(explanation) >= 20:
             return explanation
     except Exception:
         pass
 
-    # Ưu tiên 3: Fallback Programmatic (Bảo hiểm 100% không để trống trường explanation)
+    # Ưu tiên dự phòng 3: Fallback Programmatic (Bảo hiểm 100% không để trống trường explanation)
     return _fallback_explanation(answer, unit)
 
 

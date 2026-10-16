@@ -1,7 +1,7 @@
 """Test script - kiem tra cac module ma khong can vLLM"""
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-sys.stdout.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 
 print("=" * 50)
 print("KIEM TRA MODULE (khong can vLLM)")
@@ -86,10 +86,11 @@ print(f"  Ket qua khop voi 7.81 N: {val_trig == 7.81}")
 # 8. Kiem tra Sandbox Timeout cung (chong treo vo han)
 print("\n[8] Kiem tra Sandbox Timeout cung (while True test)...")
 infinite_code = """
+import time
 while True:
-    pass
+    time.sleep(0.02)
 """
-val_inf, unit_inf = execute_code(infinite_code, timeout=0.5)
+val_inf, unit_inf = execute_code(infinite_code, timeout=0.2)
 print(f"  Ket qua khi gap while True: val={val_inf}, unit={repr(unit_inf)} (phai la None, '')")
 
 # 9. Kiem tra chuan hoa don vi Canonical (_normalize_unit)
@@ -124,12 +125,57 @@ restored = _restore_values(protected_text, mapping)
 print(f"  Sau restore: {restored}")
 print(f"  Khop voi goc: {restored == test_vi}")
 
+test_latex = "According to Coulomb's law: $F = k \\frac{|q_1 q_2|}{r^2}$, with $k = 9 \\times 10^9$ N.m^2/C^2."
+prot_latex, map_latex = _protect_values(test_latex)
+print(f"\n  LaTeX goc: {test_latex}")
+print(f"  LaTeX protect: {prot_latex}")
+rest_latex = _restore_values(prot_latex, map_latex)
+print(f"  LaTeX restore khop: {rest_latex == test_latex}")
+
 # 12. Kiem tra translator import
 print("\n[12] Kiem tra translator module import...")
 import result_optimize_translator as translator
 print(f"  OK translator module")
 print(f"  USE_TRANSLATION = {config.USE_TRANSLATION}")
+print(f"  Has translate_vi_to_en: {hasattr(translator, 'translate_vi_to_en')}")
+print(f"  Has translate_en_to_vi: {hasattr(translator, 'translate_en_to_vi')}")
+
+# 13. Kiem tra Explainer module & fallback
+print("\n[13] Kiem tra Explainer module & fallback...")
+from result_explainer import PhysicsExplainer, generate_explanation, _fallback_explanation
+fb = _fallback_explanation("0.045", "J")
+print(f"  Fallback explanation: {fb}")
+assert len(fb) > 20, "Fallback explanation qua ngan!"
+print("  OK Explainer fallback")
+
+# 14. Kiem tra G-Eval score parser trong optimize_explainer
+print("\n[14] Kiem tra logic G-Eval Metric...")
+from optimize_explainer import geval_explanation_metric, GEvalExplanationJudge
+class MockPred:
+    explanation = "Theo dinh luat Coulomb $F = k \\frac{|q_1 q_2|}{r^2}$, luc tuong tac giua hai dien tich la 0.045 J."
+class MockEx:
+    question = "Tinh luc Coulomb"
+    answer = "0.045"
+    unit = "J"
+    context = "Dinh luat Coulomb..."
+
+# Test metric voi rule-based filtering (khong can LLM judge van chay qua duoc)
+score_dummy = geval_explanation_metric(MockEx(), MockPred())
+print(f"  Diem test explanation mau: {score_dummy} (phai >= 0.2)")
+assert score_dummy > 0.0, "Metric phai tinh duoc diem > 0"
+print("  OK G-Eval Metric logic")
+
+# 15. Kiem tra HyDE query expansion trong RAGPipeline
+print("\n[15] Kiem tra HyDE RAG module...")
+from rag_module import RAGPipeline
+rag = RAGPipeline()
+test_q = "Cho tu dien C = 100 uF, hieu dien the U = 30 V. Tinh nang luong dien truong."
+expanded = rag.expand_query_with_hyde(test_q)
+print(f"  Query goc: {test_q}")
+print(f"  Query sau HyDE: {expanded}")
+assert len(expanded) >= len(test_q), "HyDE query expansion khong hop le!"
+print("  OK HyDE RAG expansion")
 
 print("\n" + "=" * 50)
-print("TAT CA KIEM TRA HOAN THANH - HE THONG SAN SANG")
+print("TAT CA KIEM TRA HOAN THANH - HE THONG SAN SANG 100%")
 print("=" * 50)

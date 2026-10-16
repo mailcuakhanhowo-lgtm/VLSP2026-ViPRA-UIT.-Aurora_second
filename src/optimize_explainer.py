@@ -1,5 +1,5 @@
 """
-optimize_explainer.py - Tối ưu hóa Prompt sinh Lời giải thích (Explanation) cho Qwen2.5-7B
+optimize_explainer.py - Tối ưu hóa Prompt sinh Lời giải thích (Explanation) cho DeepSeek-Math-7B
 Sử dụng phương pháp:
     - Kết hợp G-Eval Rubric (Tiêu chuẩn đánh giá không cần nhãn ground-truth)
     - DSPy MIPROv2 với LLM-as-a-Judge đánh giá tính sư phạm và công thức LaTeX
@@ -91,29 +91,28 @@ def geval_explanation_metric(example: object, pred: object, trace=None) -> float
     target_u = str(getattr(example, "unit", "")).strip()
     ctx = str(getattr(example, "context", config.RAG_FALLBACK_TEXT))
 
-    try:
-        judge = dspy.Predict(GEvalExplanationJudge)
-        eval_result = judge(
-            question=str(example.question),
-            context=ctx,
-            target_answer=target_ans,
-            target_unit=target_u,
-            explanation=explanation,
-        )
-        score_raw = str(getattr(eval_result, "score", "0.5"))
-        match = re.search(r"(\d+(?:\.\d+)?)", score_raw)
-        if match:
-            s_val = float(match.group(1))
-            if s_val > 1.0 and s_val <= 10.0:
-                s_val /= 10.0
-            elif s_val > 10.0:
-                s_val /= 100.0
-            judge_score = max(0.0, min(1.0, s_val))
-        else:
+    judge_score = 0.5
+    if getattr(dspy.settings, "lm", None) is not None:
+        try:
+            judge = dspy.Predict(GEvalExplanationJudge)
+            eval_result = judge(
+                question=str(example.question),
+                context=ctx,
+                target_answer=target_ans,
+                target_unit=target_u,
+                explanation=explanation,
+            )
+            score_raw = str(getattr(eval_result, "score", "0.5"))
+            match = re.search(r"(\d+(?:\.\d+)?)", score_raw)
+            if match:
+                s_val = float(match.group(1))
+                if s_val > 1.0 and s_val <= 10.0:
+                    s_val /= 10.0
+                elif s_val > 10.0:
+                    s_val /= 100.0
+                judge_score = max(0.0, min(1.0, s_val))
+        except Exception:
             judge_score = 0.5
-    except Exception:
-        # Fallback an toàn nếu LLM-judge gặp sự cố
-        judge_score = 0.5
 
     # Điểm tổng hợp cuối cùng
     total_score = (0.2 * format_score + 0.8 * judge_score) * length_penalty
@@ -124,7 +123,7 @@ def geval_explanation_metric(example: object, pred: object, trace=None) -> float
 # BƯỚC 3: SETUP LM & CHẠY OPTIMIZATION
 # ============================================================
 def setup_explainer_lm():
-    """Khởi tạo LM cho Qwen2.5-7B (Explainer)."""
+    """Khởi tạo LM cho DeepSeek-Math-7B (Explainer)."""
     import urllib.request
     has_vllm = False
     try:
@@ -224,7 +223,7 @@ def run_explainer_optimization():
     4. Lưu kết quả ra output/optimized_explainer.json
     """
     print("=" * 60)
-    print("  KHỞI ĐỘNG OPTIMIZER CHO EXPLAINER (QWEN2.5-7B)")
+    print("  KHỞI ĐỘNG OPTIMIZER CHO EXPLAINER (DEEPSEEK-MATH-7B)")
     print("  Phương pháp: DSPy MIPROv2 + G-Eval Rubric Metric")
     print("=" * 60)
 
@@ -234,15 +233,29 @@ def run_explainer_optimization():
     # Trích xuất lý thuyết RAG gắn vào context (Dữ liệu cố định)
     try:
         from rag_module import RAGPipeline
+        import torch
         rag = RAGPipeline()
         rag.load_indices()
+        hit_train = 0
         for ex in train_data:
-            ex.context = rag.get_context(ex.question)
+            ctx = rag.get_context(ex.question)
+            ex.context = ctx
+            if ctx != config.RAG_FALLBACK_TEXT:
+                hit_train += 1
+        hit_dev = 0
         for ex in dev_data:
-            ex.context = rag.get_context(ex.question)
+            ctx = rag.get_context(ex.question)
+            ex.context = ctx
+            if ctx != config.RAG_FALLBACK_TEXT:
+                hit_dev += 1
+        print(f"[Explainer Optimizer] RAG hoàn tất: {hit_train}/{len(train_data)} Train, {hit_dev}/{len(dev_data)} Dev khớp lý thuyết Feynman.")
         del rag
-    except Exception:
-        pass
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception as e:
+        print(f"[Explainer Optimizer Cảnh báo] Không thể chạy RAG ({e}). Dùng fallback context.")
 
     # Chuẩn bị Example với đầu vào đầy đủ: question, context, answer, unit
     explainer_trainset = [
@@ -273,8 +286,8 @@ def run_explainer_optimization():
         metric=geval_explanation_metric,
         auto=None,
         num_candidates=5,
-        max_bootstrapped_demos=2,
-        max_labeled_demos=1,
+        max_bootstrapped_demos=3,
+        max_labeled_demos=0,
         verbose=True,
     )
 
@@ -287,6 +300,22 @@ def run_explainer_optimization():
         minibatch=True,
         minibatch_size=min(15, len(explainer_trainset)),
     )
+
+    # Đánh giá lần cuối trên Dev set
+    print("\n[Evaluate Explainer] Đánh giá kết quả cuối cùng trên Dev set...")
+    evaluator = dspy.Evaluate(
+        devset=explainer_devset,
+        metric=geval_explanation_metric,
+        num_threads=1,
+        display_progress=True,
+        display_table=3,
+    )
+    final_score = evaluator(optimized_explainer)
+    try:
+        score_val = float(final_score) if not hasattr(final_score, 'score') else float(final_score.score)
+        print(f"\n[Result] Điểm G-Eval Explainer cuối cùng trên Dev: {score_val:.2%}")
+    except Exception:
+        print(f"\n[Result] Đánh giá hoàn tất: {final_score}")
 
     # Lưu kết quả
     os.makedirs(config.DSPY_OUTPUT_DIR, exist_ok=True)

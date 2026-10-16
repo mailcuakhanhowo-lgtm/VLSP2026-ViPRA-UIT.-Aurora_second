@@ -85,11 +85,16 @@ def setup_lm():
 
         lm = LocalTransformersLM(pipe, config.BASE_MODEL_ID)
 
-    dspy.configure(lm=lm)
+    try:
+        adapter = dspy.ChatAdapter()
+        dspy.configure(lm=lm, adapter=adapter)
+        print("[Predict Setup] Đã kích hoạt ChatAdapter để ép sinh text/code chuẩn.")
+    except Exception:
+        dspy.configure(lm=lm)
 
-    # Preload translator model vào RAM/VRAM ngay khi khởi động
+    # Preload translator model vào RAM/VRAM ngay khi khởi động (cả 2 chiều vi2en và en2vi để suy luận mượt mà)
     if config.USE_TRANSLATION:
-        preload_translator()
+        preload_translator(direction="both")
 
 
 def load_optimized_solver() -> PhysicsSolver:
@@ -177,25 +182,31 @@ def solve(solver: PhysicsSolver, query_id: str, query: str, context: str = None)
     else:
         question_for_llm = query
 
-    # --- Bước 2: LLM sinh lý thuyết CoT và code Python ---
     pred = solver(question=question_for_llm, context=context)
-    raw_code       = str(getattr(pred, "python_code", ""))
-    extraction     = str(getattr(pred, "extraction", "")).strip()
-    explanation_vi = str(getattr(pred, "explanation_vi", "")).strip()
+    raw_code = str(getattr(pred, "python_code", ""))
 
     # --- Bước 3: Wrapper: làm sạch và chạy code trong Sandbox có timeout 15s ---
     clean_code = clean_python_code(raw_code)
     final_answer, unit = execute_code(clean_code)
 
-    # --- Bước 4: Xử lý fallback nếu exec() thất bại ---
+    # --- Bước 4: Xử lý kết quả & Explanation (DeepSeek-Math-7B) ---
     if final_answer is None:
         answer_str = "ERROR"
         unit = ""
-        explanation = explanation_vi if explanation_vi else "[Lỗi] Không thể thực thi mã Python sinh ra."
-        steps = [f"[Dữ kiện] {extraction}", "[Lỗi thực thi code]", raw_code]
+        try:
+            from result_explainer import generate_explanation
+            explanation = generate_explanation(
+                question=query,
+                context=context,
+                answer="chưa xác định",
+                unit="",
+                question_en=question_for_llm if config.USE_TRANSLATION else None,
+            )
+        except Exception:
+            explanation = "Áp dụng các định luật vật lý tiêu chuẩn trong Điện và Từ học để suy luận và giải bài toán."
+        steps = ["[Lỗi thực thi mã Python giải toán]", raw_code] if raw_code else ["[Không sinh được mã thực thi]"]
     else:
-        answer_str  = _format_final_answer(final_answer)
-        # explanation chuẩn BTC: gọi Explainer (Qwen2.5-7B) sinh lời giải thích sư phạm tiếng Việt
+        answer_str = _format_final_answer(final_answer)
         try:
             from result_explainer import generate_explanation
             explanation = generate_explanation(
@@ -203,6 +214,7 @@ def solve(solver: PhysicsSolver, query_id: str, query: str, context: str = None)
                 context=context,
                 answer=answer_str,
                 unit=unit if unit else "",
+                question_en=question_for_llm if config.USE_TRANSLATION else None,
             )
         except Exception:
             explanation = ""

@@ -84,25 +84,35 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
     except Exception:
         return None, ""
 
-    def _run_exec():
-        exec(compiled_code, namespace)
-        ans = namespace.get("final_answer", None)
-        u = str(namespace.get("unit", "")).strip()
-        if u == "-":
-            u = ""
-        return ans, u
+    import threading
 
-    # Chạy có Timeout cứng qua ThreadPoolExecutor
-    try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_run_exec)
-            final_answer, unit = future.result(timeout=timeout)
-            return final_answer, unit
-    except concurrent.futures.TimeoutError:
-        print(f"[Sandbox Warning] Code chạy vượt quá {timeout}s! Đã ngắt tiến trình.")
+    res = [None, ""]
+    err = [None]
+
+    def _worker():
+        try:
+            exec(compiled_code, namespace)
+            ans = namespace.get("final_answer", None)
+            u = str(namespace.get("unit", "")).strip()
+            if u == "-":
+                u = ""
+            res[0] = ans
+            res[1] = u
+        except Exception as e:
+            err[0] = e
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout)
+
+    if thread.is_alive():
+        print(f"[Sandbox Warning] Code chay vuot qua {timeout}s! Da ngat tien trinh.")
         return None, ""
-    except Exception:
+
+    if err[0] is not None:
         return None, ""
+
+    return res[0], res[1]
 
 
 # ============================================================

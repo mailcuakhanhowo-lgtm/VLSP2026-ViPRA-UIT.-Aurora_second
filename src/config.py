@@ -35,12 +35,13 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "checkpoints")
 BASE_MODEL_ID = "deepseek-ai/deepseek-math-7b-instruct"
 
 # ==========================================
-# 2.1 EXPLAINER MODEL CONFIGURATION (Stage 2 Explainer - Tiếng Việt)
+# 2.1 EXPLAINER MODEL CONFIGURATION (Stage 2 Explainer - DeepSeek English)
 # ==========================================
-EXPLAINER_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+EXPLAINER_MODEL_ID = BASE_MODEL_ID  # Dùng chung DeepSeek-Math-7B, 100% hợp lệ luật 8B
 EXPLAINER_API_BASE = "http://localhost:8000/v1"
 EXPLAINER_API_KEY  = "none"
 USE_EXPLAINER = True
+TRANSLATION_EN2VI_MODEL_ID = "vinai/vinai-translate-en2vi-v2"
 
 # ==========================================
 # 3. RAG CONFIGURATION (Hybrid Search)
@@ -60,7 +61,11 @@ BM25_TOP_K = 20
 DENSE_TOP_K = 20
 RRF_K = 60
 FINAL_TOP_K = 2
-SIMILARITY_THRESHOLD = 0.75
+SIMILARITY_THRESHOLD = 0.50  # Hạ từ 0.75 xuống 0.50 để giải quyết Asymmetric Retrieval
+
+# Cấu hình kỹ thuật HyDE (Hypothetical Document Embeddings)
+USE_HYDE = True
+HYDE_MAX_TOKENS = 40
 
 # Bật/Tắt chế độ chạy thử (Dev/Test). Đặt None để chạy toàn bộ dữ liệu.
 JUST_TEST_QUERIES = 5
@@ -109,7 +114,7 @@ LM_API_KEY  = "none"                      # vLLM không cần key thật
 NUMERICAL_TOLERANCE = 0.05
 
 # Cấu hình RAG Fallback & Ngưỡng tin cậy
-RAG_SIMILARITY_THRESHOLD = 0.75
+RAG_SIMILARITY_THRESHOLD = SIMILARITY_THRESHOLD
 RAG_FALLBACK_TEXT = "Không có tài liệu tham khảo bổ sung. Hãy sử dụng các định luật vật lý tiêu chuẩn."
 
 # Giới hạn thời gian Sandbox an toàn (tránh treo vô tận)
@@ -122,8 +127,8 @@ MAX_DEV_EXAMPLES   = 100
 # Tham số MIPROv2 - Cân bằng tối ưu: 10 candidates, 40 trials
 MIPRO_NUM_CANDIDATES         = 10  # 10 biến thể Instruction
 MIPRO_NUM_TRIALS             = 40  # 40 vòng Bayesian Search
-MIPRO_MAX_BOOTSTRAPPED_DEMOS = 3   # 3 ví dụ PAL giải đúng tự động
-MIPRO_MAX_LABELED_DEMOS      = 2   # 2 ví dụ có nhãn tham chiếu
+MIPRO_MAX_BOOTSTRAPPED_DEMOS = 4   # 4 ví dụ PAL giải đúng tự động (được kiểm định qua Sandbox)
+MIPRO_MAX_LABELED_DEMOS      = 0   # 0 vì tập gốc chưa có code Python, toàn bộ demo phải được bootstrap qua kiểm định
 
 # ==========================================
 # 6. TRANSLATION CONFIGURATION (Vi → En)

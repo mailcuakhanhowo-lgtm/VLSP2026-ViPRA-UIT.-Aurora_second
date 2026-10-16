@@ -2,9 +2,7 @@ import os
 import pickle
 import pandas as pd
 import numpy as np
-import faiss
 from rank_bm25 import BM25Okapi
-from sentence_transformers import SentenceTransformer
 import config
 
 def tokenize(text: str):
@@ -47,6 +45,9 @@ class RAGPipeline:
     # 2. BUILD SEMANTIC (FAISS + BGE-M3)
     # ==========================================
     def build_semantic(self, corpus_df: pd.DataFrame):
+        import faiss
+        from sentence_transformers import SentenceTransformer
+
         print(f"[*] Loading Embedding Model: {config.EMBEDDING_MODEL_ID}")
         if self.embedding_model is None:
             self.embedding_model = SentenceTransformer(
@@ -85,6 +86,9 @@ class RAGPipeline:
     # ==========================================
     def load_indices(self):
         """Dùng lúc inference để load nhanh DB"""
+        import faiss
+        from sentence_transformers import SentenceTransformer
+
         print("[*] Loading RAG Indices...")
         with open(config.BM25_INDEX_PATH, 'rb') as f:
             self.bm25 = pickle.load(f)
@@ -154,13 +158,75 @@ class RAGPipeline:
         return sorted_rrf
         
     # ==========================================
+    # 7.5. HyDE QUERY EXPANSION (Hypothetical Document Embeddings)
+    # ==========================================
+    def expand_query_with_hyde(self, query: str) -> str:
+        """
+        Kỹ thuật HyDE: Gọi vLLM (mô hình 7B đang chạy trên cổng 8000) sinh cực nhanh
+        tên các định luật và đại lượng vật lý liên quan (20-30 tokens, temperature=0.0).
+        Ghép từ khóa này vào câu hỏi để biến Asymmetric Search thành Symmetric Search.
+        """
+        if not getattr(config, "USE_HYDE", False):
+            return query
+
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.2)
+            try:
+                sock.connect(("127.0.0.1", 8000))
+                sock.close()
+            except Exception:
+                return query
+
+            import json
+            import urllib.request
+
+            prompt = (
+                f"Chỉ nêu tên định luật và các đại lượng vật lý cần dùng để giải bài toán sau, không giải bài: {query.strip()}\n"
+                "Trả lời thật ngắn gọn dưới 30 từ:"
+            )
+            payload = {
+                "model": config.BASE_MODEL_ID,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": getattr(config, "HYDE_MAX_TOKENS", 40),
+                "temperature": 0.0,
+                "stream": False,
+            }
+            api_base = config.LM_API_BASE.replace("localhost", "127.0.0.1")
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                f"{api_base}/chat/completions",
+                data=data,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {config.LM_API_KEY}",
+                },
+            )
+            proxy_handler = urllib.request.ProxyHandler({})
+            opener = urllib.request.build_opener(proxy_handler)
+            with opener.open(req, timeout=1.0) as resp:
+                if resp.status == 200:
+                    res_json = json.loads(resp.read().decode("utf-8"))
+                    keywords = res_json["choices"][0]["message"]["content"].strip()
+                    if keywords:
+                        return f"{query} {keywords}"
+        except Exception:
+            # Fallback an toàn nếu vLLM offline (chạy test, v.v.)
+            pass
+        return query
+
+    # ==========================================
     # 8. HYBRID SEARCH PIPELINE (Hàm chính để gọi)
     # ==========================================
-    def hybrid_search(self, query: str):
+    def hybrid_search(self, query: str, use_hyde: bool = True):
         """Hàm duy nhất cần gọi khi có câu hỏi mới từ BTC"""
+        # 0. Mở rộng câu hỏi bằng kỹ thuật HyDE (chuyển truy xuất bất đối xứng thành đối xứng)
+        search_query = self.expand_query_with_hyde(query) if use_hyde else query
+
         # 1. Chạy 2 luồng song song
-        bm25_res = self.bm25_search(query)
-        dense_res = self.semantic_search(query)
+        bm25_res = self.bm25_search(search_query)
+        dense_res = self.semantic_search(search_query)
         
         # 2. Hợp nhất bằng RRF
         fused_results = self.rrf(bm25_res, dense_res)
@@ -221,12 +287,12 @@ class RAGPipeline:
 
         return "\n\n".join(context_blocks)
 
-    def get_context(self, query: str) -> str:
+    def get_context(self, query: str, use_hyde: bool = True) -> str:
         """
         Hàm tiện ích cấp cao:
-        Tìm kiếm Hybrid (BM25 + BGE-M3) -> Lọc ngưỡng 75% -> Trả về chuỗi context (hoặc Fallback text).
+        Mở rộng câu hỏi HyDE -> Tìm kiếm Hybrid (BM25 + BGE-M3) -> Lọc ngưỡng -> Trả về context.
         """
-        results = self.hybrid_search(query)
+        results = self.hybrid_search(query, use_hyde=use_hyde)
         return self.format_rag_context(results)
 
 # Kịch bản Build DB nếu chạy file này trực tiếp

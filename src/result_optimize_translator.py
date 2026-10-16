@@ -35,6 +35,10 @@ _device = None
 
 # Pattern để nhận diện các chuỗi cần bảo vệ (theo thứ tự ưu tiên)
 _PROTECT_PATTERNS = [
+    # Công thức LaTeX toán học / vật lý ($$...$$ hoặc $...$)
+    r'\$\$[\s\S]*?\$\$',
+    r'\$[^\$\n]+?\$',
+
     # Số kèm đơn vị vật lý (VD: "100 μF", "22.5 Ω", "3 × 10^-6 F")
     r'\d+(?:[.,]\d+)?\s*(?:×\s*10\^[+-]?\d+\s*)?'
     r'(?:μF|uF|nF|pF|μH|mH|μΩ|kΩ|MΩ|Ω|ohm|kV|mV|μV|'
@@ -60,49 +64,33 @@ _PLACEHOLDER_RE  = re.compile(r"__PH_(\d+)__")
 
 def _protect_values(text: str) -> tuple[str, dict]:
     """
-    Thay thế các số và ký hiệu vật lý bằng placeholder.
+    Thay thế các số, ký hiệu vật lý và công thức LaTeX bằng placeholder.
+    Theo đúng thứ tự ưu tiên của pattern (LaTeX -> số+đơn vị -> số mũ -> số thường).
     Trả về (text_với_placeholder, dict mapping idx→giá_trị_gốc).
     """
-    protected = {}
-    counter = [0]  # dùng list để có thể modify trong closure
+    selected = []  # list of (start, end, val)
 
-    def replace_match(m: re.Match) -> str:
-        idx = counter[0]
-        counter[0] += 1
-        placeholder = _PLACEHOLDER_FMT.format(idx=idx)
-        protected[str(idx)] = m.group(0)
-        return placeholder
-
-    result = text
-    # Áp dụng lần lượt từng pattern, bảo vệ match dài nhất trước
-    # Dùng một lượt scan để tránh double-replace
-    all_matches = []
+    # Duyệt lần lượt từng pattern theo thứ tự ưu tiên
     for pattern in _COMPILED_PATTERNS:
-        for m in pattern.finditer(result):
-            # Chỉ lấy nếu chưa nằm trong placeholder đã xử lý
-            if "__PH_" not in result[m.start():m.end()]:
-                all_matches.append((m.start(), m.end(), m.group(0)))
+        for m in pattern.finditer(text):
+            start, end = m.start(), m.end()
+            # Giao nhau giữa 2 khoảng [start, end) và [s, e) <=> max(start, s) < min(end, e)
+            overlap = any(max(start, s) < min(end, e) for s, e, _ in selected)
+            if not overlap:
+                selected.append((start, end, m.group(0)))
 
-    # Sắp xếp từ cuối về đầu để không bị lệch vị trí khi thay thế
-    all_matches.sort(key=lambda x: x[0], reverse=True)
-    seen_ranges = []
-    filtered = []
-    for start, end, val in all_matches:
-        # Bỏ qua nếu overlap với match đã chọn
-        overlap = any(s <= start < e or s < end <= e for s, e in seen_ranges)
-        if not overlap:
-            filtered.append((start, end, val))
-            seen_ranges.append((start, end))
+    # Sắp xếp từ cuối về đầu theo start index để việc thay thế không làm lệch index
+    selected.sort(key=lambda x: x[0], reverse=True)
 
-    filtered.sort(key=lambda x: x[0], reverse=True)
-    for start, end, val in filtered:
-        idx = counter[0]
-        counter[0] += 1
+    protected = {}
+    result = text
+    for idx, (start, end, val) in enumerate(selected):
         placeholder = _PLACEHOLDER_FMT.format(idx=idx)
         protected[str(idx)] = val
         result = result[:start] + placeholder + result[end:]
 
     return result, protected
+
 
 
 def _restore_values(translated: str, protected: dict) -> str:
@@ -295,14 +283,116 @@ def translate_batch(texts: list[str], use_placeholder: bool = True) -> list[str]
     return results
 
 
-def preload():
-    """Nạp model vào bộ nhớ trước (gọi 1 lần khi khởi động server để tránh delay)."""
+# ============================================================
+# PHẦN 4: DỊCH TIẾNG ANH → TIẾNG VIỆT (Dành cho Stage 2 Explainer)
+# ============================================================
+
+_tokenizer_en2vi = None
+_model_en2vi = None
+_device_en2vi = None
+
+
+def _load_en2vi_model_if_needed():
+    """Load tokenizer và model En->Vi (vinai-translate-en2vi-v2) lần đầu."""
+    global _tokenizer_en2vi, _model_en2vi, _device_en2vi
+    if _model_en2vi is not None:
+        return
+
+    import torch
+    from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+    import config
+
+    device_str = getattr(config, "TRANSLATION_DEVICE", "cpu")
+    cache_dir  = getattr(config, "TRANSLATION_CACHE_DIR", "./models/vinai-translate")
+    model_id   = getattr(config, "TRANSLATION_EN2VI_MODEL_ID", "vinai/vinai-translate-en2vi-v2")
+
+    print(f"[Translator En2Vi] Loading model: {model_id}")
+    print(f"[Translator En2Vi] Device      : {device_str}")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    _tokenizer_en2vi = AutoTokenizer.from_pretrained(
+        model_id,
+        cache_dir=cache_dir,
+        src_lang="en_XX",
+    )
+
+    dtype = torch.float16 if "cuda" in str(device_str) and torch.cuda.is_available() else torch.float32
+    _model_en2vi = AutoModelForSeq2SeqLM.from_pretrained(
+        model_id,
+        cache_dir=cache_dir,
+        torch_dtype=dtype,
+    )
+
+    _device_en2vi = torch.device(device_str if (torch.cuda.is_available() or device_str == "cpu") else "cpu")
+    _model_en2vi = _model_en2vi.to(_device_en2vi)
+    _model_en2vi.eval()
+    print(f"[Translator En2Vi] Model loaded successfully on {_device_en2vi}!\n")
+
+
+def translate_en_to_vi(text: str, use_placeholder: bool = True) -> str:
+    """
+    Dịch đoạn văn tiếng Anh sang tiếng Việt (chuẩn sư phạm).
+    Bảo vệ công thức LaTeX và số liệu vật lý trước khi dịch.
+    """
+    import config
+    if not getattr(config, "USE_TRANSLATION", True):
+        return text
+
+    if not text or not text.strip():
+        return text
+
+    _load_en2vi_model_if_needed()
+
+    import torch
+
+    # Bước 1: Bảo vệ số, ký hiệu và công thức LaTeX
+    if use_placeholder:
+        text_to_translate, protected = _protect_values(text)
+    else:
+        text_to_translate = text
+        protected = {}
+
+    # Bước 2: Tokenize
+    inputs = _tokenizer_en2vi(
+        text_to_translate,
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=512,
+    ).to(_device_en2vi)
+
+    # Bước 3: Sinh bản dịch
+    with torch.no_grad():
+        outputs = _model_en2vi.generate(
+            **inputs,
+            decoder_start_token_id=_tokenizer_en2vi.lang_code_to_id["vi_VN"],
+            num_beams=4,
+            max_length=getattr(config, "TRANSLATION_MAX_LENGTH", 256),
+            early_stopping=True,
+        )
+
+    # Bước 4: Decode & phục hồi placeholder
+    translated = _tokenizer_en2vi.batch_decode(outputs, skip_special_tokens=True)[0]
+    if use_placeholder and protected:
+        translated = _restore_values(translated, protected)
+
+    return translated.strip()
+
+
+def preload(direction: str = "vi2en"):
+    """
+    Nạp model dịch vào bộ nhớ trước.
+    - direction='vi2en': chỉ nạp Vi->En (dùng cho optimize_prompt và solver)
+    - direction='both': nạp cả hai chiều nếu cần
+    """
     _load_model_if_needed()
+    if direction == "both":
+        _load_en2vi_model_if_needed()
 
 
 def unload():
-    """Giải phóng bộ nhớ model dịch sau khi hoàn tất batch translation."""
-    global _tokenizer, _model, _device
+    """Giải phóng toàn bộ bộ nhớ model dịch sau khi hoàn tất."""
+    global _tokenizer, _model, _device, _tokenizer_en2vi, _model_en2vi, _device_en2vi
     import gc
     import torch
     if _model is not None:
@@ -311,9 +401,18 @@ def unload():
     if _tokenizer is not None:
         del _tokenizer
         _tokenizer = None
+    if _model_en2vi is not None:
+        del _model_en2vi
+        _model_en2vi = None
+    if _tokenizer_en2vi is not None:
+        del _tokenizer_en2vi
+        _tokenizer_en2vi = None
+
     _device = None
+    _device_en2vi = None
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
-    print("[Translator] Model unloaded and memory freed.")
+    print("[Translator] All translation models unloaded and memory freed.")
+
 
