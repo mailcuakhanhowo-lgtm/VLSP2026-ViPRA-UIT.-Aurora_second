@@ -265,7 +265,7 @@ def run_explainer_optimization():
             answer=str(ex.answer),
             unit=str(getattr(ex, "unit", "")),
         ).with_inputs("question", "context", "answer", "unit")
-        for ex in train_data[:min(60, len(train_data))]  # Tập mẫu tối ưu vừa phải để tiết kiệm thời gian
+        for ex in train_data[:min(25, len(train_data))]  # Thu gọn 25 mẫu để tối ưu nhanh
     ]
 
     explainer_devset = [
@@ -275,7 +275,7 @@ def run_explainer_optimization():
             answer=str(ex.answer),
             unit=str(getattr(ex, "unit", "")),
         ).with_inputs("question", "context", "answer", "unit")
-        for ex in dev_data[:min(20, len(dev_data))]
+        for ex in dev_data[:min(10, len(dev_data))]
     ]
 
     print(f"[Explainer Optimizer] Train size: {len(explainer_trainset)} | Dev size: {len(explainer_devset)}\n")
@@ -285,8 +285,8 @@ def run_explainer_optimization():
     optimizer = MIPROv2(
         metric=geval_explanation_metric,
         auto=None,
-        num_candidates=5,
-        max_bootstrapped_demos=3,
+        num_candidates=3,
+        max_bootstrapped_demos=2,
         max_labeled_demos=0,
         verbose=True,
     )
@@ -296,9 +296,9 @@ def run_explainer_optimization():
         student=student_module,
         trainset=explainer_trainset,
         valset=explainer_devset,
-        num_trials=15,
+        num_trials=8,
         minibatch=True,
-        minibatch_size=min(15, len(explainer_trainset)),
+        minibatch_size=min(8, len(explainer_trainset)),
     )
 
     # Đánh giá lần cuối trên Dev set
