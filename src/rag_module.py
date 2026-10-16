@@ -45,6 +45,33 @@ class RAGPipeline:
         self.embedding_model = None
 
     # ==========================================
+    # 0.1 HELPER: TỰ ĐỘNG CHỌN DEVICE CHO BGE-M3
+    # ==========================================
+    def _resolve_embedding_device(self, min_free_gb: float = 1.4) -> str:
+        """
+        Xác định device (cuda/cpu) cho mô hình BGE-M3.
+        Ở chế độ FP16 + max_seq_length=512, BGE-M3 chỉ cần ~1.3-1.4 GB VRAM.
+        Nếu VRAM còn trống < min_free_gb, tự động fallback sang CPU.
+        """
+        import torch
+        target_device = getattr(config, "EMBEDDING_DEVICE", "cuda")
+        if "cuda" in str(target_device) and torch.cuda.is_available():
+            try:
+                free_bytes = torch.cuda.mem_get_info()[0]
+                free_gb = free_bytes / (1024 ** 3)
+                if free_gb < min_free_gb:
+                    print(
+                        f"[!] Cảnh báo VRAM: GPU 0 chỉ còn {free_gb:.2f} GB trống. "
+                        f"Cần tối thiểu {min_free_gb:.1f} GB cho BGE-M3 (FP16). "
+                        f"Tự động nạp BGE-M3 trên CPU để tránh CUDA OutOfMemoryError!"
+                    )
+                    return "cpu"
+                return "cuda"
+            except Exception:
+                return "cpu"
+        return "cpu"
+
+    # ==========================================
     # 0. HELPER: TRÍCH XUẤT TEXT CHUẨN
     # ==========================================
     def _extract_corpus_texts(self, corpus_df: pd.DataFrame) -> list[str]:
@@ -74,20 +101,53 @@ class RAGPipeline:
     # ==========================================
     def build_semantic(self, corpus_df: pd.DataFrame):
         import faiss
+        import torch
         from sentence_transformers import SentenceTransformer
 
-        print(f"[*] Loading Embedding Model: {config.EMBEDDING_MODEL_ID}")
+        device = self._resolve_embedding_device(min_free_gb=1.4)
+        print(f"[*] Loading Embedding Model: {config.EMBEDDING_MODEL_ID} on device={device} (FP16)")
+        if device == "cuda":
+            torch.cuda.empty_cache()
+
         if self.embedding_model is None:
+            model_kwargs = {"torch_dtype": torch.float16} if device == "cuda" else {}
             self.embedding_model = SentenceTransformer(
                 config.EMBEDDING_MODEL_ID, 
-                device=config.EMBEDDING_DEVICE
+                device=device,
+                model_kwargs=model_kwargs
             )
+            if device == "cuda":
+                try:
+                    self.embedding_model = self.embedding_model.half()
+                except Exception:
+                    pass
         
         texts = self._extract_corpus_texts(corpus_df)
-        print(f"[*] Encoding {len(texts)} documents to vectors...")
+        batch_size = getattr(config, "EMBEDDING_BATCH_SIZE", 8)
+        print(f"[*] Encoding {len(texts)} documents to vectors in FP16 (batch_size={batch_size})...")
         
-        # Normalize để dùng với IndexFlatIP (Cosine Similarity)
-        embeddings = self.embedding_model.encode(texts, normalize_embeddings=True)
+        with torch.inference_mode():
+            try:
+                embeddings = self.embedding_model.encode(
+                    texts, 
+                    batch_size=batch_size, 
+                    normalize_embeddings=True,
+                    show_progress_bar=True
+                )
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
+                if "out of memory" in str(e).lower() or isinstance(e, getattr(torch.cuda, "OutOfMemoryError", RuntimeError)):
+                    print("[!] CUDA OOM khi encode. Giải phóng bộ nhớ GPU và chuyển sang CPU...")
+                    torch.cuda.empty_cache()
+                    self.embedding_model = self.embedding_model.to("cpu")
+                    embeddings = self.embedding_model.encode(
+                        texts, 
+                        batch_size=batch_size, 
+                        normalize_embeddings=True,
+                        show_progress_bar=True
+                    )
+                else:
+                    raise e
+
         embeddings = np.array(embeddings).astype('float32')
         
         print("[*] Building FAISS Index...")
@@ -115,6 +175,7 @@ class RAGPipeline:
     def load_indices(self):
         """Dùng lúc inference để load nhanh DB"""
         import faiss
+        import torch
         from sentence_transformers import SentenceTransformer
 
         print("[*] Loading RAG Indices...")
@@ -126,11 +187,22 @@ class RAGPipeline:
         with open(config.RAG_METADATA_PATH, 'rb') as f:
             self.metadata = pickle.load(f)
             
+        device = self._resolve_embedding_device(min_free_gb=1.4)
+        print(f"[*] Loading BGE-M3 for inference on device={device} (FP16)")
+        if device == "cuda":
+            torch.cuda.empty_cache()
+        model_kwargs = {"torch_dtype": torch.float16} if device == "cuda" else {}
         self.embedding_model = SentenceTransformer(
             config.EMBEDDING_MODEL_ID, 
-            device=config.EMBEDDING_DEVICE
+            device=device,
+            model_kwargs=model_kwargs
         )
-        print("[+] Loaded BM25, FAISS, Metadata, and BGE-M3 successfully.")
+        if device == "cuda":
+            try:
+                self.embedding_model = self.embedding_model.half()
+            except Exception:
+                pass
+        print("[+] Loaded BM25, FAISS, Metadata, and BGE-M3 in FP16 successfully.")
 
     # ==========================================
     # 5. BM25 SEARCH
@@ -150,7 +222,19 @@ class RAGPipeline:
     # 6. SEMANTIC SEARCH
     # ==========================================
     def semantic_search(self, query: str, top_k=config.DENSE_TOP_K):
-        query_emb = self.embedding_model.encode([query], normalize_embeddings=True)
+        import torch
+        with torch.inference_mode():
+            try:
+                query_emb = self.embedding_model.encode([query], normalize_embeddings=True)
+            except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
+                if "out of memory" in str(e).lower() or isinstance(e, getattr(torch.cuda, "OutOfMemoryError", RuntimeError)):
+                    print("[!] CUDA OOM trong semantic_search. Chuyển embedding model sang CPU...")
+                    torch.cuda.empty_cache()
+                    self.embedding_model = self.embedding_model.to("cpu")
+                    query_emb = self.embedding_model.encode([query], normalize_embeddings=True)
+                else:
+                    raise e
+
         query_emb = np.array(query_emb).astype('float32')
         
         scores, indices = self.faiss_index.search(query_emb, top_k)

@@ -50,7 +50,9 @@ EMBEDDING_MODEL_ID = "BAAI/bge-m3"
 import torch
 
 EMBEDDING_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+EMBEDDING_DTYPE = "float16"         # Ép BGE-M3 chạy FP16 để giảm 50% VRAM (chỉ còn ~1.1 GB)
 EMBEDDING_DIMENSION = 1024
+EMBEDDING_BATCH_SIZE = 8            # Lô 8 tài liệu/lần encode để triệt tiêu hoàn toàn VRAM spike
 
 VECTOR_DB_BACKEND = "faiss"                 
 FAISS_INDEX_PATH = os.path.join(RAG_DIR, "faiss_index.bin")
