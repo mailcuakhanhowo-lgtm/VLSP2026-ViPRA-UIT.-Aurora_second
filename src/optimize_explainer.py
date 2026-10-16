@@ -1,12 +1,9 @@
 """
-optimize_explainer.py - Tối ưu hóa Prompt sinh Lời giải thích (Explanation) cho DeepSeek-Math-7B
+optimize_explainer.py - Tối ưu hóa Prompt sinh Lời giải thích (Explanation) cho Qwen2.5-7B-Instruct
 Sử dụng phương pháp:
     - Kết hợp G-Eval Rubric (Tiêu chuẩn đánh giá không cần nhãn ground-truth)
     - DSPy MIPROv2 với LLM-as-a-Judge đánh giá tính sư phạm và công thức LaTeX
 Kết quả lưu tại: output/optimized_explainer.json
-
-Sử dụng độc lập:
-    python src/optimize_explainer.py
 """
 
 import os
@@ -223,7 +220,7 @@ def run_explainer_optimization():
     4. Lưu kết quả ra output/optimized_explainer.json
     """
     print("=" * 60)
-    print("  KHỞI ĐỘNG OPTIMIZER CHO EXPLAINER (DEEPSEEK-MATH-7B)")
+    print(f"  KHỞI ĐỘNG OPTIMIZER CHO EXPLAINER ({config.EXPLAINER_MODEL_ID})")
     print("  Phương pháp: DSPy MIPROv2 + G-Eval Rubric Metric")
     print("=" * 60)
 
