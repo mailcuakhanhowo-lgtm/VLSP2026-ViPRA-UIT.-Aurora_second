@@ -33,6 +33,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "checkpoints")
 # 2. BASE MODEL CONFIGURATION (LLM chính - Stage 1 Solver)
 # ==========================================
 BASE_MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+MAX_MODEL_LEN = 8192
 
 # ==========================================
 # 2.1 EXPLAINER MODEL CONFIGURATION (Stage 2 Explainer - English Qualitative)

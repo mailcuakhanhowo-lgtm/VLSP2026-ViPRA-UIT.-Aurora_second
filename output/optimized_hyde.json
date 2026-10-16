@@ -1,0 +1,39 @@
+{
+  "generator": {
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "question": "Một tụ điện có điện dung 5 μF, đặt vào hiệu điện thế 10 V. Tính điện tích của tụ.",
+        "physics_keywords": "Capacitance\nVoltage\nCharge\nC = Q/U"
+      },
+      {
+        "augmented": true,
+        "question": "Một tụ điện có hiệu điện thế U(t) = 250 * cos(2000t), điện dung 4 µF. Năng lượng điện trường tại t = 1 ms là bao nhiêu?",
+        "physics_keywords": "Capacitor Energy\nElectric Field Energy\nCosine Function"
+      }
+    ],
+    "signature": {
+      "instructions": "Analyze the provided physics problem (stated in Vietnamese).\nIdentify and list the key physics principles, laws, and formula names in English.\nProvide a concise list of English physics terminology and formula names only. Do not solve the problem.",
+      "fields": [
+        {
+          "prefix": "Question:",
+          "description": "The physics problem statement (can be in Vietnamese)."
+        },
+        {
+          "prefix": "Physics Keywords:",
+          "description": "Concise English physics laws, principles, and formulas (e.g., Ohm's Law, Joule heating, P = I^2*R)."
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.11",
+      "dspy": "3.4.0",
+      "cloudpickle": "3.1"
+    }
+  }
+}
