@@ -340,6 +340,14 @@ class RAGPipeline:
                 if resp.status == 200:
                     res_json = json.loads(resp.read().decode("utf-8"))
                     keywords = res_json["choices"][0]["message"]["content"].strip()
+                    # 1. Giải mã các ký tự byte-level BPE đặc thù (Ġ là space, Ċ là newline)
+                    keywords = keywords.replace("Ġ", " ").replace("Ċ", "\n").replace("ĉ", "\t")
+                    # 2. Cắt bỏ nếu LLM lặp lại đề bài tiếng Anh (vd: Problem: ...)
+                    if "Problem:" in keywords:
+                        keywords = keywords.split("Problem:")[0]
+                    if "problem:" in keywords.lower():
+                        keywords = keywords.split("problem:")[0]
+                    keywords = keywords.strip()
                     if keywords:
                         print(f"[HyDE] Mở rộng thành công qua vLLM: {keywords}")
                         return f"{query} {keywords}"
@@ -396,6 +404,8 @@ class RAGPipeline:
                     item["unit"] = doc_data.get("unit", "")
                 retrieved_examples.append(item)
                 
+        # Sắp xếp giảm dần theo điểm liên quan để bài chuẩn nhất luôn đứng vị trí [1]
+        retrieved_examples.sort(key=lambda x: x["similarity"], reverse=True)
         return retrieved_examples
 
     # ==========================================
