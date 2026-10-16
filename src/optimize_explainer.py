@@ -83,7 +83,7 @@ def geval_explanation_metric(example: object, pred: object, trace=None) -> float
 
     # 2. Kiểm tra định dạng LaTeX (Rule-based: 20% điểm)
     has_latex = bool(re.search(r"\$.*?\$|\\(?:frac|cdot|times|sqrt|omega|mu|pi)", explanation))
-    format_score = 0.2 if has_latex else 0.05
+    format_score = 1.0 if has_latex else 0.2
 
     # 3. G-Eval LLM-as-a-Judge chấm nội dung (80% điểm)
     target_ans = str(getattr(example, "answer", "")).strip()
@@ -99,8 +99,17 @@ def geval_explanation_metric(example: object, pred: object, trace=None) -> float
             target_unit=target_u,
             explanation=explanation,
         )
-        judge_score = float(eval_result.score)
-        judge_score = max(0.0, min(1.0, judge_score))
+        score_raw = str(getattr(eval_result, "score", "0.5"))
+        match = re.search(r"(\d+(?:\.\d+)?)", score_raw)
+        if match:
+            s_val = float(match.group(1))
+            if s_val > 1.0 and s_val <= 10.0:
+                s_val /= 10.0
+            elif s_val > 10.0:
+                s_val /= 100.0
+            judge_score = max(0.0, min(1.0, s_val))
+        else:
+            judge_score = 0.5
     except Exception:
         # Fallback an toàn nếu LLM-judge gặp sự cố
         judge_score = 0.5
