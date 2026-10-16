@@ -1,0 +1,49 @@
+{
+  "predictor": {
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "question": "Cho cuộn cảm thuần 0.05 H nối tiếp với tụ điện 200 μF, xác định tần số cộng hưởng?",
+        "context": "[Chapter 23. Cavity Resonators > 23-5 Cavities and resonant circuits]\n[Chapter 23. Cavity Resonators > 23-5 Cavities and resonant circuits]\n\n23-5 Cavities and resonant circuits\n\nAlthough the resonant cavity we have been describing seems to be quite\n\ndifferent from the ordinary resonant circuit consisting of an inductance\n\nand a capacitor, the two resonant systems are, of course, closely\n\nrelated. They are both members of the same family; they are just two\n\nextreme cases of electromagnetic resonators—and there are many\n\nintermediate cases between these two extremes. Suppose we start by\n\nconsidering the resonant circuit of a capacitor in parallel with an\n\ninductance, as shown in Fig.  23-16 (a). This circuit will\n\nresonate at the frequency $\\omega_0=1/\\sqrt{LC}$. If we want to raise\n\nthe resonant frequency of this circuit, we can do so by lowering the\n\ninductance $L$. One way is to decrease the number of turns in the coil.\n\nWe can, however, go only so far in this direction. Eventually we will\n\nget down to the last turn, and we will have just a piece of wire joining\n\nthe top and bottom plates of the condenser. We could raise the resonant\n\nfrequency still further by making the capacitance smaller; however, we\n\ncan also continue to decrease the inductance by putting several\n\ninductances in parallel. Two one-turn inductances in parallel will have\n\nonly half the inductance of each turn. So when our inductance has been\n\nreduced to a single turn, we can continue to raise the resonant\n\nfrequency by adding other single loops from the top plate to the bottom\n\nplate of the condenser. For instance, Fig.  23-16 (b) shows\n\nthe condenser plates connected by six such “single-turn inductances.”\n\nIf we continue to add many such pieces of wire, we can make the\n\ntransition to the completely enclosed resonant system shown in part (c)\n\nof the figure, which is a drawing of the cross section of a\n\ncylindrically symmetrical object. Our inductance is now a cylindrical\n\nhollow can attached to the edges of the condenser plates. The electric\n\nand magnetic fields will be as shown in the figure. Such an object is,\n\nof course, a resonant cavity. It is called a “loaded” cavity. But we\n\n[Chapter 23. Cavity Resonators > 23-1 Real circuit elements]\n[Chapter 23. Cavity Resonators > 23-1 Real circuit elements]\n\nin part (c) of the figure (which is again the same resonant circuit we\n\nfound for the high-frequency model of a resistor). For higher\n\nfrequencies, however, the more complicated circuit of\n\nFig.  23-3 (b) is better. In fact, the more accurately you\n\nwish to represent the actual impedance of a real, physical inductance,\n\nthe more ideal elements you will have to use in the artificial model of\n\nit.\n\nLet’s look a little more closely at what goes on in a real coil. The\n\nimpedance of an inductance goes as $\\omega L$, so it becomes zero at\n\nlow frequencies—it is a “short circuit”: all we see is the\n\nresistance of the wire. As we go up in frequency, $\\omega L$ soon\n\nbecomes much larger than $R$, and the coil looks pretty much like an\n\nideal inductance. As we go still higher, however, the capacities\n\nbecome important. Their impedance is proportional to $1/\\omega C$,\n\nwhich is large for small $\\omega$. For small enough frequencies a\n\ncondenser is an “open circuit,” and when it is in parallel with\n\nsomething else, it draws no current. But at high frequencies, the\n\ncurrent prefers to flow into the capacitance between the turns, rather\n\nthan through the inductance. So the current in the coil jumps from one\n\nturn to the other and doesn’t bother to go around and around where it\n\nhas to buck the emf. So although we may have intended that the\n\ncurrent should go around the loop, it will take the easier path—the\n\npath of least impedance.\n\nIf the subject had been one of popular interest, this effect would\n\nhave been called “the high-frequency barrier,” or some such\n\nname. The same kind of thing happens in all subjects. In aerodynamics,\n\nif you try to make things go faster than the speed of sound when they\n\nwere designed for lower speeds, they don’t work. It doesn’t mean that\n\nthere is a great “barrier” there; it just means that the object\n\nshould be redesigned. So this coil which we designed as an\n\n“inductance” is not going to work as a good inductance, but as some\n\n“inductance” is not going to work as a good inductance, but as some\n\nother kind of thing at very high frequencies. For high frequencies, we\n\nhave to find a new design.",
+        "answer": "50.33",
+        "unit": "Hz",
+        "explanation": "Cuộn cảm và tụ điện tạo thành một mạch cộng hưởng khi tần số khiến độ dung kháng bằng độ kháng cảm kháng. Công thức tính tần số cộng hưởng là $\\omega_0 = \\frac{1}{\\sqrt{LC}}$, trong đó $L$ là độ tự cảm và $C$ là độ dung của tụ điện."
+      }
+    ],
+    "signature": {
+      "instructions": "Bạn là Chuyên gia Vật lý và Giáo viên sư phạm xuất sắc.\nNhiệm vụ: Viết một đoạn giải thích lý thuyết ngắn gọn (từ 1 đến 3 câu) bằng TIẾNG VIỆT cho bài toán vật lý.\nYêu cầu:\n1. Nêu rõ hiện tượng vật lý và tên định luật / nguyên lý áp dụng (tham khảo RAG context nếu có).\n2. Viết công thức đại số tổng quát dưới dạng mã LaTeX ($...$).\n3. Trình bày ngắn gọn, súc tích, tự nhiên theo văn phong sách giáo khoa.\n4. Tuyệt đối KHÔNG viết CoT 4 bước dài dòng, KHÔNG chào hỏi, KHÔNG có từ thừa.",
+      "fields": [
+        {
+          "prefix": "Question:",
+          "description": "Đề bài câu hỏi vật lý tiếng Việt."
+        },
+        {
+          "prefix": "Context:",
+          "description": "Lý thuyết và công thức liên quan từ RAG."
+        },
+        {
+          "prefix": "Answer:",
+          "description": "Đáp án cuối cùng đã tính toán."
+        },
+        {
+          "prefix": "Unit:",
+          "description": "Đơn vị vật lý chuẩn ASCII."
+        },
+        {
+          "prefix": "Explanation:",
+          "description": "Đoạn văn ngắn (1-3 câu) giải thích hiện tượng, nêu định luật và công thức LaTeX ($...$)."
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.11",
+      "dspy": "3.4.0",
+      "cloudpickle": "3.1"
+    }
+  }
+}
