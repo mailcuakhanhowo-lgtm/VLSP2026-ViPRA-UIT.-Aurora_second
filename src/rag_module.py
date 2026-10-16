@@ -290,6 +290,7 @@ class RAGPipeline:
                     pred = hyde_mod(question=query)
                     kw = str(getattr(pred, "physics_keywords", "")).strip()
                     if kw:
+                        print(f"[HyDE] Đã mở rộng từ khóa (DSPy): {kw}")
                         return f"{query} {kw}"
         except Exception:
             pass
@@ -302,7 +303,8 @@ class RAGPipeline:
             try:
                 sock.connect(("127.0.0.1", 8000))
                 sock.close()
-            except Exception:
+            except Exception as e:
+                print(f"[HyDE] Không kết nối được vLLM cổng 8000 ({e}). Bỏ qua HyDE, dùng câu hỏi gốc.")
                 return query
 
             import json
@@ -329,6 +331,7 @@ class RAGPipeline:
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {config.LM_API_KEY}",
+                    "User-Agent": "ViPRA-RAG/1.0",
                 },
             )
             proxy_handler = urllib.request.ProxyHandler({})
@@ -338,9 +341,10 @@ class RAGPipeline:
                     res_json = json.loads(resp.read().decode("utf-8"))
                     keywords = res_json["choices"][0]["message"]["content"].strip()
                     if keywords:
+                        print(f"[HyDE] Mở rộng thành công qua vLLM: {keywords}")
                         return f"{query} {keywords}"
-        except Exception:
-            # Fallback an toàn nếu vLLM offline (chạy test, v.v.)
+        except Exception as e:
+            print(f"[HyDE] Lỗi khi gọi vLLM API: {e}. Bỏ qua HyDE, dùng câu hỏi gốc.")
             pass
         return query
 
@@ -351,6 +355,8 @@ class RAGPipeline:
         """Hàm duy nhất cần gọi khi có câu hỏi mới từ BTC"""
         # 0. Mở rộng câu hỏi bằng kỹ thuật HyDE sang từ khóa tiếng Anh
         search_query = self.expand_query_with_hyde(query) if use_hyde else query
+        if search_query != query:
+            print(f"[*] Query sau khi mở rộng HyDE: '{search_query}'")
 
         # 1. Chạy 2 luồng song song (BM25 từ khóa + BGE-M3 ngữ nghĩa đa ngữ)
         bm25_res = self.bm25_search(search_query)
