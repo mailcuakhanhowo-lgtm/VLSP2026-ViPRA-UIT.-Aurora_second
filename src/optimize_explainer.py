@@ -35,12 +35,13 @@ class GEvalExplanationJudge(dspy.Signature):
        TUYỆT ĐỐI KHÔNG chia 4 bước dài dòng kiểu CoT (1. Nhận diện, 2. Công thức, 3. Thay số, 4. Kết luận).
        KHÔNG có câu chào hỏi thừa như "Dưới đây là...".
        
-    2. Chuẩn xác Vật lý & Công thức LaTeX (Faithfulness & Formula):
-       Nêu đúng tên định luật / hiện tượng vật lý áp dụng (ví dụ: Định luật Coulomb, Định luật Ohm, Cảm ứng điện từ...).
-       Có công thức đại số tổng quát bằng mã LaTeX ($...$).
+    2. Chuẩn xác Vật lý & Cơ sở lý thuyết (Faithfulness & Physics Foundation):
+       Trình bày rõ bản chất vật lý, cơ sở lý thuyết và tên định luật / nguyên lý áp dụng (tham khảo RAG context).
+       Có công thức ĐẠI SỐ TỔNG QUÁT bằng mã LaTeX ($...$).
+       TUYỆT ĐỐI KHÔNG sa đà vào tự thế số trung gian hay tính toán số học (để tránh mâu thuẫn số liệu với đáp án đã cho).
        
     3. Nhất quán với Đáp số (Consistency):
-       Lời giải thích logic và khớp với đáp án mục tiêu {target_answer} {target_unit}.
+       Lời giải thích logic, kết luận phù hợp với đáp án mục tiêu {target_answer} {target_unit}.
     """
     question: str = dspy.InputField(desc="Đề bài câu hỏi vật lý.")
     context: str = dspy.InputField(desc="Tài liệu lý thuyết RAG liên quan.")
@@ -137,10 +138,31 @@ def setup_explainer_lm():
     except Exception:
         has_vllm = False
 
+    explainer_model_id = config.EXPLAINER_MODEL_ID
     if has_vllm:
+        import json
+        try:
+            req = urllib.request.Request(
+                f"{config.EXPLAINER_API_BASE}/models",
+                headers={"Authorization": f"Bearer {config.EXPLAINER_API_KEY}"}
+            )
+            with urllib.request.urlopen(req, timeout=2) as response:
+                if response.status == 200:
+                    data = json.loads(response.read().decode())
+                    if data.get("data") and len(data["data"]) > 0:
+                        detected_model = data["data"][0]["id"]
+                        if detected_model != config.EXPLAINER_MODEL_ID:
+                            print(f"[Cảnh báo Explainer] vLLM đang chạy model: {detected_model}")
+                            print(f"[Cảnh báo Explainer] Nhưng config ghi: {config.EXPLAINER_MODEL_ID}")
+                            print(f"[Setup Explainer] Tự động đồng bộ dùng model đang chạy: {detected_model}")
+                            explainer_model_id = detected_model
+        except Exception:
+            pass
+
         print(f"[Setup Explainer] Kết nối vLLM server: {config.EXPLAINER_API_BASE}")
+        print(f"[Setup Explainer] Kết nối tới model: {explainer_model_id}")
         lm = dspy.LM(
-            model=f"openai/{config.EXPLAINER_MODEL_ID}",
+            model=f"openai/{explainer_model_id}",
             api_base=config.EXPLAINER_API_BASE,
             api_key=config.EXPLAINER_API_KEY,
             max_tokens=512,

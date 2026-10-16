@@ -64,10 +64,10 @@ EXPLAINER_USER_TEMPLATE = """Hãy viết một đoạn giải thích lý thuyế
 Đáp số: {answer} {unit}
 
 [YÊU CẦU BẮT BUỘC]:
-1. Nêu rõ hiện tượng vật lý và tên định luật/nguyên lý áp dụng (tham khảo tài liệu RAG nếu phù hợp).
-2. Viết công thức đại số tổng quát bằng định dạng LaTeX ($...$).
-3. Nêu rõ mối liên hệ giữa các đại lượng dẫn đến đáp số {answer} {unit}.
-4. Đi thẳng vào giải thích, KHÔNG chào hỏi, KHÔNG có từ thừa như "Dưới đây là...".
+1. Trình bày CƠ SỞ LÝ THUYẾT, bản chất vật lý và tên định luật/nguyên lý áp dụng (tham khảo tài liệu RAG nếu phù hợp).
+2. Viết công thức ĐẠI SỐ TỔNG QUÁT dưới dạng mã LaTeX ($...$).
+3. TUYỆT ĐỐI KHÔNG tự thực hiện phép tính số học hay thế số trung gian (để tránh sai lệch với đáp số đã xác định). Nêu rõ mối liên hệ giữa các đại lượng dẫn đến kết quả {answer} {unit}.
+4. Đi thẳng vào giải thích lý thuyết, KHÔNG chào hỏi, KHÔNG có từ thừa như "Dưới đây là...".
 
 Đoạn giải thích:"""
 

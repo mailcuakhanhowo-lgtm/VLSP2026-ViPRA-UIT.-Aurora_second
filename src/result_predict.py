@@ -195,15 +195,23 @@ def solve(solver: PhysicsSolver, query_id: str, query: str, context: str = None)
         steps = [f"[Dữ kiện] {extraction}", "[Lỗi thực thi code]", raw_code]
     else:
         answer_str  = _format_final_answer(final_answer)
-        # explanation chuẩn BTC: ưu tiên lý thuyết thuần túy từ explanation_vi (không số)
-        if explanation_vi:
-            explanation = explanation_vi
-        else:
+        # explanation chuẩn BTC: gọi Explainer (Qwen2.5-7B) sinh lời giải thích sư phạm tiếng Việt
+        try:
+            from result_explainer import generate_explanation
+            explanation = generate_explanation(
+                question=query,
+                context=context,
+                answer=answer_str,
+                unit=unit if unit else "",
+            )
+        except Exception:
+            explanation = ""
+
+        if not explanation:
             explanation = f"Áp dụng định luật vật lý tính toán: final_answer = {answer_str} {unit}.".strip()
-        
-        # reasoning.steps: thể hiện rõ ràng các bước từ dữ kiện đến từng dòng lệnh Python
-        steps = [f"[Dữ kiện] {extraction}"] if extraction else []
-        steps.extend(_build_reasoning_steps(clean_code))
+
+        # reasoning.steps: thể hiện rõ ràng các bước thực thi từ code Python
+        steps = _build_reasoning_steps(clean_code)
 
     # --- Ghép JSON theo đúng định dạng BTC 5 trường ---
     result = {
