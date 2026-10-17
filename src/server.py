@@ -186,6 +186,16 @@ def _format_final_answer(final_answer) -> str:
         return str(final_answer).strip()
 
 
+def _format_unit(unit_val) -> str:
+    """Chuẩn hóa đơn vị đo lường theo Mục 4.3 của BTC: Phân tách bằng '; ' nếu là mảng."""
+    if isinstance(unit_val, (list, tuple)):
+        clean_parts = [str(u).strip() for u in unit_val if str(u).strip() and str(u).strip() != "-"]
+        return "; ".join(clean_parts)
+    u_str = str(unit_val).strip() if unit_val is not None else ""
+    return "" if u_str == "-" else u_str
+
+
+
 def _build_reasoning_steps(extraction: str, clean_code: str) -> List[str]:
     """Tạo mảng các bước lập luận CoT minh bạch (Mục 4.4), loại bỏ các dòng import kỹ thuật."""
     steps = []
@@ -333,7 +343,7 @@ async def predict_endpoint(payload: PredictInput):
             steps = ["[Lỗi thực thi mã Python]", raw_code] if raw_code else ["[Không sinh được mã thực thi]"]
         else:
             answer_str = _format_final_answer(final_answer)
-            unit_str = unit if unit else ""
+            unit_str = _format_unit(unit)
             
             # Sinh giải thích sư phạm chuẩn BTC qua result_explainer (nạp từ optimized_explainer.json)
             explanation = ""

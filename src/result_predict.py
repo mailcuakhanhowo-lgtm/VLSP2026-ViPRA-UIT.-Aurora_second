@@ -154,6 +154,15 @@ def _format_number(val: float) -> str:
         return formatted
 
 
+def _format_unit(unit_val) -> str:
+    """Chuẩn hóa đơn vị đo lường theo Mục 4.3 của BTC: Phân tách bằng '; ' nếu là mảng."""
+    if isinstance(unit_val, (list, tuple)):
+        clean_parts = [str(u).strip() for u in unit_val if str(u).strip() and str(u).strip() != "-"]
+        return "; ".join(clean_parts)
+    u_str = str(unit_val).strip() if unit_val is not None else ""
+    return "" if u_str == "-" else u_str
+
+
 def _build_reasoning_steps(python_code: str) -> list[str]:
     """
     Ghép từng dòng code có nghĩa thành reasoning.steps.
@@ -221,7 +230,7 @@ def solve(solver: PhysicsSolver, query_id: str, query: str, context: str = None)
             explanation = ""
 
         if not explanation:
-            explanation = f"Áp dụng định luật vật lý tính toán: final_answer = {answer_str} {unit}.".strip()
+            explanation = "Áp dụng các định luật và công thức vật lý tiêu chuẩn trong Điện và Từ học để suy luận và giải bài toán."
 
         # reasoning.steps: thể hiện rõ ràng các bước thực thi từ code Python
         steps = _build_reasoning_steps(clean_code)
@@ -230,7 +239,7 @@ def solve(solver: PhysicsSolver, query_id: str, query: str, context: str = None)
     result = {
         "query_id":    query_id,
         "answer":      answer_str,
-        "unit":        unit if unit else "",
+        "unit":        _format_unit(unit),
         "explanation": explanation,
         "reasoning": {
             "type":  "cot",
