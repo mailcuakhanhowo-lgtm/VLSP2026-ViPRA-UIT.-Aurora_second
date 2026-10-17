@@ -158,11 +158,12 @@ def _build_reasoning_steps(python_code: str) -> list[str]:
     """
     Ghép từng dòng code có nghĩa thành reasoning.steps.
     Thể hiện thuần túy các bước khai báo biến, đổi đơn vị SI và công thức đại số (P3).
+    Loại bỏ các dòng import kỹ thuật (import numpy, math...).
     """
     steps = []
     for line in python_code.splitlines():
         line = line.strip()
-        if not line:
+        if not line or line.startswith(("import ", "from ")):
             continue
         steps.append(line)
     return steps

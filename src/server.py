@@ -187,15 +187,16 @@ def _format_final_answer(final_answer) -> str:
 
 
 def _build_reasoning_steps(extraction: str, clean_code: str) -> List[str]:
-    """Tạo mảng các bước lập luận CoT minh bạch (Mục 4.4)."""
+    """Tạo mảng các bước lập luận CoT minh bạch (Mục 4.4), loại bỏ các dòng import kỹ thuật."""
     steps = []
     if extraction and extraction.strip():
         steps.append(f"[Dữ kiện] {extraction.strip()}")
     for line in clean_code.splitlines():
         line = line.strip()
-        if line:
+        if line and not line.startswith(("import ", "from ")):
             steps.append(line)
     return steps
+
 
 
 # ============================================================
