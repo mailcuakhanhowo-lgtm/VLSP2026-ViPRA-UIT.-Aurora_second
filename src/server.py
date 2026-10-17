@@ -104,6 +104,12 @@ async def lifespan(app: FastAPI):
     logger.info("=== ĐANG KHỞI ĐỘNG VIPRA 2026 API SERVER ===")
     try:
         solver_instance = init_solver()
+        if getattr(config, "USE_TRANSLATION", False):
+            try:
+                preload_translator(direction="vi2en")
+                logger.info("Đã preload mô hình dịch thuật VinAI sẵn sàng!")
+            except Exception as te:
+                logger.warning(f"Không thể preload translator: {te}")
         logger.info("=== HỆ THỐNG ĐÃ SẴN SÀNG NHẬN TRUY VẤN TỪ BTC ===")
     except Exception as e:
         logger.error(f"Lỗi nghiêm trọng khi khởi tạo solver: {e}", exc_info=True)
@@ -291,7 +297,24 @@ async def predict_endpoint(payload: PredictInput):
         else:
             answer_str = _format_final_answer(final_answer)
             unit_str = unit if unit else ""
-            explanation = f"{extraction} Tính bằng Python: final_answer = {answer_str} {unit_str}.".strip()
+            
+            # Sinh giải thích sư phạm chuẩn BTC qua result_explainer
+            explanation = ""
+            try:
+                from result_explainer import generate_explanation
+                explanation = generate_explanation(
+                    question=query,
+                    context=None,
+                    answer=answer_str,
+                    unit=unit_str,
+                    question_en=question_for_llm if config.USE_TRANSLATION else None,
+                )
+            except Exception as ee:
+                logger.debug(f"Không gọi được generate_explanation: {ee}")
+
+            if not explanation or not explanation.strip():
+                explanation = f"Áp dụng định luật vật lý tính toán: final_answer = {answer_str} {unit_str}.".strip()
+
             steps = _build_reasoning_steps(extraction, clean_code)
 
         # Đảm bảo explanation không bao giờ rỗng theo luật BTC (Mục 4.2)
@@ -335,5 +358,6 @@ async def predict_endpoint(payload: PredictInput):
 
 if __name__ == "__main__":
     import uvicorn
-    # Chạy server ở port 8000 (mặc định)
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=False)
+    # Chạy server ở port 8080 (tránh xung đột với cổng 8000 của vLLM)
+    server_port = int(os.environ.get("PORT", 8080))
+    uvicorn.run("server:app", host="0.0.0.0", port=server_port, reload=False)
