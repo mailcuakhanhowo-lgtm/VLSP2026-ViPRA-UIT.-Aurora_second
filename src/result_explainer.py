@@ -216,7 +216,41 @@ def generate_explanation(
     unit_display = f" {unit}" if unit else ""
 
     # ============================================================
-    # LUỒNG CHÍNH: DeepSeek (7B) sinh Tiếng Anh → VinAI dịch sang Tiếng Việt
+    # ƯU TIÊN 1: DSPy Optimized Explainer (Đã tối ưu hóa qua MIPROv2)
+    # ============================================================
+    ckpt_path = getattr(config, "OPTIMIZED_EXPLAINER_PATH", "")
+    if ckpt_path and os.path.exists(ckpt_path):
+        try:
+            # Tự động nạp LM cho DSPy nếu chưa có
+            if getattr(dspy.settings, "lm", None) is None:
+                try:
+                    lm = dspy.LM(
+                        model=f"openai/{config.BASE_MODEL_ID}",
+                        api_base=config.LM_API_BASE,
+                        api_key=config.LM_API_KEY,
+                        max_tokens=512,
+                        temperature=0.2,
+                    )
+                    dspy.settings.configure(lm=lm)
+                except Exception:
+                    pass
+
+            if getattr(dspy.settings, "lm", None) is not None:
+                explainer_mod = get_optimized_explainer()
+                pred = explainer_mod(
+                    question=question.strip(),
+                    context=context_str.strip(),
+                    answer=str(answer).strip(),
+                    unit=str(unit).strip(),
+                )
+                opt_exp = str(getattr(pred, "explanation", "")).strip()
+                if opt_exp and len(opt_exp) >= 20:
+                    return opt_exp
+        except Exception:
+            pass
+
+    # ============================================================
+    # ƯU TIÊN 2: LLM sinh Tiếng Anh → VinAI dịch sang Tiếng Việt
     # ============================================================
     if getattr(config, "USE_TRANSLATION", True):
         try:
@@ -236,7 +270,7 @@ def generate_explanation(
                 {"role": "user", "content": user_prompt_en},
             ]
 
-            # Bước A: DeepSeek-Math-7B sinh lời giải thích tiếng Anh (vLLM hoặc Transformers)
+            # Bước A: LLM sinh lời giải thích tiếng Anh (vLLM hoặc Transformers)
             exp_en = ""
             try:
                 exp_en = _call_vllm_api(messages_en)
@@ -255,7 +289,7 @@ def generate_explanation(
             pass
 
     # ============================================================
-    # LUỒNG DỰ PHÒNG: Sinh Tiếng Việt trực tiếp (nếu tắt translation hoặc lỗi dịch)
+    # ƯU TIÊN 3: Sinh Tiếng Việt trực tiếp (nếu tắt translation hoặc lỗi dịch)
     # ============================================================
     user_prompt_vi = EXPLAINER_USER_TEMPLATE.format(
         question=question.strip(),
@@ -284,7 +318,9 @@ def generate_explanation(
     except Exception:
         pass
 
-    # Ưu tiên dự phòng 3: Fallback Programmatic (Bảo hiểm 100% không để trống trường explanation)
+    # ============================================================
+    # ƯU TIÊN 4: Fallback Programmatic (Bảo hiểm 100% không để trống trường explanation)
+    # ============================================================
     return _fallback_explanation(answer, unit)
 
 
