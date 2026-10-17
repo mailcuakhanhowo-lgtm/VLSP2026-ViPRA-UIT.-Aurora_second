@@ -43,6 +43,9 @@ def clean_python_code(raw_code: str) -> str:
     for old, new in replacements.items():
         code = code.replace(old, new)
 
+    # Loại bỏ dòng import math / cmath thừa vì đã được nạp sẵn vào namespace
+    code = re.sub(r"^\s*(?:import\s+(?:math|cmath)|from\s+(?:math|cmath)\s+import\s+.*)\s*$", "", code, flags=re.MULTILINE)
+
     return code
 
 
@@ -57,11 +60,18 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
     if timeout is None:
         timeout = float(SANDBOX_TIMEOUT_SECONDS)
 
+    def _safe_import(name, *args, **kwargs):
+        if name in ("math", "cmath", "decimal", "fractions"):
+            import importlib
+            return importlib.import_module(name)
+        raise ImportError(f"Import {name} is restricted in sandbox")
+
     namespace = {
         "__builtins__": {
             "abs": abs, "round": round, "min": min, "max": max,
             "sum": sum, "len": len, "range": range, "list": list,
             "float": float, "int": int, "str": str, "print": lambda *a: None,
+            "__import__": _safe_import,
         },
         "math": math,
         # Lượng giác tính theo ĐỘ (giúp LLM không cần đổi radians thủ công)

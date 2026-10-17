@@ -37,8 +37,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ViPRA_Server")
 
-# Biến toàn cục lưu solver
+# Biến toàn cục lưu solver và RAG
 solver_instance: Optional[PhysicsSolver] = None
+rag_instance = None
+
+
+def init_rag():
+    """Khởi tạo RAG Pipeline và tải các index đã build (Feynman theory)."""
+    global rag_instance
+    try:
+        from rag_module import RAGPipeline
+        rag = RAGPipeline()
+        rag.load_indices()
+        logger.info("Nạp RAG Indices (BM25 + FAISS BGE-M3 FP16) thành công!")
+        return rag
+    except Exception as e:
+        logger.warning(f"Không thể nạp RAG DB ({e}). Server sẽ dùng fallback context.")
+        return None
 
 
 # ============================================================
@@ -100,19 +115,20 @@ def init_solver() -> Optional[PhysicsSolver]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Khởi tạo tài nguyên trước khi mở API và dọn dẹp khi tắt."""
-    global solver_instance
+    global solver_instance, rag_instance
     logger.info("=== ĐANG KHỞI ĐỘNG VIPRA 2026 API SERVER ===")
     try:
         solver_instance = init_solver()
+        rag_instance = init_rag()
         if getattr(config, "USE_TRANSLATION", False):
             try:
-                preload_translator(direction="vi2en")
-                logger.info("Đã preload mô hình dịch thuật VinAI sẵn sàng!")
+                preload_translator(direction="both")
+                logger.info("Đã preload mô hình dịch thuật VinAI (vi2en & en2vi) sẵn sàng!")
             except Exception as te:
                 logger.warning(f"Không thể preload translator: {te}")
         logger.info("=== HỆ THỐNG ĐÃ SẴN SÀNG NHẬN TRUY VẤN TỪ BTC ===")
     except Exception as e:
-        logger.error(f"Lỗi nghiêm trọng khi khởi tạo solver: {e}", exc_info=True)
+        logger.error(f"Lỗi nghiêm trọng khi khởi tạo: {e}", exc_info=True)
     yield
     logger.info("=== ĐANG TẮT SERVER ===")
 
@@ -272,14 +288,22 @@ async def predict_endpoint(payload: PredictInput):
         ]
 
     try:
+        # Bước 0: Tra cứu tri thức lý thuyết từ RAG Module (Feynman Theory Chunks)
+        context = config.RAG_FALLBACK_TEXT
+        if rag_instance:
+            try:
+                context = rag_instance.get_context(query)
+            except Exception as re:
+                logger.warning(f"[{query_id}] Lỗi truy xuất RAG context: {re}")
+
         # Bước 1: Dịch Vi -> En nếu bật
         if config.USE_TRANSLATION:
             question_for_llm = translate_vi_to_en(query)
         else:
             question_for_llm = query
 
-        # Bước 2: Gọi LLM sinh extraction + python_code
-        pred = solver_instance(question=question_for_llm)
+        # Bước 2: Gọi LLM sinh python_code (có kèm context lý thuyết từ RAG)
+        pred = solver_instance(question=question_for_llm, context=context)
         raw_code = str(getattr(pred, "python_code", "")).strip()
         extraction = str(getattr(pred, "extraction", "")).strip()
 
@@ -292,19 +316,31 @@ async def predict_endpoint(payload: PredictInput):
             logger.warning(f"[{query_id}] Code thực thi thất bại! Chuyển sang fallback.")
             answer_str = "0"
             unit_str = ""
-            explanation = f"{extraction} (Lưu ý: Không thể hoàn tất tính toán tự động)." if extraction else "Không thể giải bài toán này."
-            steps = [extraction, "[Lỗi thực thi mã Python]", raw_code] if extraction else [raw_code]
-        else:
-            answer_str = _format_final_answer(final_answer)
-            unit_str = unit if unit else ""
-            
-            # Sinh giải thích sư phạm chuẩn BTC qua result_explainer
             explanation = ""
             try:
                 from result_explainer import generate_explanation
                 explanation = generate_explanation(
                     question=query,
-                    context=None,
+                    context=context,
+                    answer="chưa xác định",
+                    unit="",
+                    question_en=question_for_llm if config.USE_TRANSLATION else None,
+                )
+            except Exception as ee:
+                logger.debug(f"Không gọi được generate_explanation: {ee}")
+                explanation = "Áp dụng các định luật vật lý tiêu chuẩn trong Điện và Từ học để suy luận và giải bài toán."
+            steps = ["[Lỗi thực thi mã Python]", raw_code] if raw_code else ["[Không sinh được mã thực thi]"]
+        else:
+            answer_str = _format_final_answer(final_answer)
+            unit_str = unit if unit else ""
+            
+            # Sinh giải thích sư phạm chuẩn BTC qua result_explainer (nạp từ optimized_explainer.json)
+            explanation = ""
+            try:
+                from result_explainer import generate_explanation
+                explanation = generate_explanation(
+                    question=query,
+                    context=context,
                     answer=answer_str,
                     unit=unit_str,
                     question_en=question_for_llm if config.USE_TRANSLATION else None,
@@ -313,7 +349,7 @@ async def predict_endpoint(payload: PredictInput):
                 logger.debug(f"Không gọi được generate_explanation: {ee}")
 
             if not explanation or not explanation.strip():
-                explanation = f"Áp dụng định luật vật lý tính toán: final_answer = {answer_str} {unit_str}.".strip()
+                explanation = "Áp dụng các định luật và công thức vật lý tiêu chuẩn để suy luận và giải bài toán."
 
             steps = _build_reasoning_steps(extraction, clean_code)
 
