@@ -113,22 +113,42 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
     err = [None]
 
     def _worker():
-        try:
-            exec(compiled_code, namespace)
-            ans = namespace.get("final_answer", None)
-            u = str(namespace.get("unit", "")).strip()
-            if u == "-":
-                u = ""
-            # Chuyển đổi an toàn nếu ans là đối tượng SymPy (Float, Rational, Expr...)
-            if ans is not None and hasattr(ans, "evalf"):
-                try:
-                    ans = float(ans.evalf())
-                except Exception:
-                    ans = str(ans)
-            res[0] = ans
-            res[1] = u
-        except Exception as e:
-            err[0] = e
+        max_retries = 3
+        current_err = None
+        for _ in range(max_retries):
+            try:
+                exec(compiled_code, namespace)
+                ans = namespace.get("final_answer", None)
+                u = str(namespace.get("unit", "")).strip()
+                if u == "-":
+                    u = ""
+                # Chuyển đổi an toàn nếu ans là đối tượng SymPy (Float, Rational, Expr...)
+                if ans is not None and hasattr(ans, "evalf"):
+                    try:
+                        ans = float(ans.evalf())
+                    except Exception:
+                        ans = str(ans)
+                res[0] = ans
+                res[1] = u
+                return
+            except NameError as ne:
+                current_err = ne
+                missing_var = getattr(ne, "name", None)
+                if not missing_var and "name '" in str(ne):
+                    m = re.search(r"name '(\w+)' is not defined", str(ne))
+                    if m:
+                        missing_var = m.group(1)
+                if missing_var and missing_var not in namespace:
+                    if sp is not None:
+                        namespace[missing_var] = sp.Symbol(missing_var)
+                    else:
+                        namespace[missing_var] = 0
+                else:
+                    break
+            except Exception as e:
+                current_err = e
+                break
+        err[0] = current_err
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
