@@ -9,6 +9,10 @@ try:
     import numpy as np
 except ImportError:
     np = None
+try:
+    import sympy as sp
+except ImportError:
+    sp = None
 from config import NUMERICAL_TOLERANCE, SANDBOX_TIMEOUT_SECONDS
 
 
@@ -65,7 +69,7 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
         timeout = float(SANDBOX_TIMEOUT_SECONDS)
 
     def _safe_import(name, *args, **kwargs):
-        if name in ("math", "cmath", "decimal", "fractions", "numpy", "scipy"):
+        if name in ("math", "cmath", "decimal", "fractions", "numpy", "scipy", "sympy"):
             import importlib
             return importlib.import_module(name)
         raise ImportError(f"Import {name} is restricted in sandbox")
@@ -80,6 +84,8 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
         "math": math,
         "np": np if np is not None else math,
         "numpy": np if np is not None else math,
+        "sp": sp,
+        "sympy": sp,
         "t": 0,  # Thời điểm ban đầu t=0 cho biểu thức dao động/xoay chiều nếu LLM chưa gán t
         # Lượng giác tính theo ĐỘ (giúp LLM không cần đổi radians thủ công)
         "sin_deg": lambda x: math.sin(math.radians(x)),
@@ -113,6 +119,12 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
             u = str(namespace.get("unit", "")).strip()
             if u == "-":
                 u = ""
+            # Chuyển đổi an toàn nếu ans là đối tượng SymPy (Float, Rational, Expr...)
+            if ans is not None and hasattr(ans, "evalf"):
+                try:
+                    ans = float(ans.evalf())
+                except Exception:
+                    ans = str(ans)
             res[0] = ans
             res[1] = u
         except Exception as e:
