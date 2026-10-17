@@ -348,14 +348,20 @@ async def predict_endpoint(payload: PredictInput):
             except Exception as ee:
                 logger.debug(f"Không gọi được generate_explanation: {ee}")
 
+            try:
+                from result_explainer import clean_explanation_text
+                explanation = clean_explanation_text(explanation)
+            except Exception:
+                pass
+
             if not explanation or not explanation.strip():
                 explanation = "Áp dụng các định luật và công thức vật lý tiêu chuẩn để suy luận và giải bài toán."
 
             steps = _build_reasoning_steps(extraction, clean_code)
 
-        # Đảm bảo explanation không bao giờ rỗng theo luật BTC (Mục 4.2)
-        if not explanation.strip():
-            explanation = f"Đáp án là {answer_str} {unit_str}."
+        # Đảm bảo explanation không bao giờ rỗng theo luật BTC (Mục 4.2), định tính không lộ số
+        if not explanation or not explanation.strip():
+            explanation = "Áp dụng các định luật và công thức vật lý tiêu chuẩn trong Điện và Từ học để suy luận và giải bài toán."
 
         result_item = PredictOutputItem(
             query_id=query_id,

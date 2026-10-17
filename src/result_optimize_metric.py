@@ -5,6 +5,10 @@ Chạy python_code qua exec(), lấy final_answer, so sánh với ground truth.
 import re
 import math
 import concurrent.futures
+try:
+    import numpy as np
+except ImportError:
+    np = None
 from config import NUMERICAL_TOLERANCE, SANDBOX_TIMEOUT_SECONDS
 
 
@@ -61,7 +65,7 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
         timeout = float(SANDBOX_TIMEOUT_SECONDS)
 
     def _safe_import(name, *args, **kwargs):
-        if name in ("math", "cmath", "decimal", "fractions"):
+        if name in ("math", "cmath", "decimal", "fractions", "numpy", "scipy"):
             import importlib
             return importlib.import_module(name)
         raise ImportError(f"Import {name} is restricted in sandbox")
@@ -74,6 +78,9 @@ def execute_code(code: str, timeout: float = None) -> tuple[any, str]:
             "__import__": _safe_import,
         },
         "math": math,
+        "np": np if np is not None else math,
+        "numpy": np if np is not None else math,
+        "t": 0,  # Thời điểm ban đầu t=0 cho biểu thức dao động/xoay chiều nếu LLM chưa gán t
         # Lượng giác tính theo ĐỘ (giúp LLM không cần đổi radians thủ công)
         "sin_deg": lambda x: math.sin(math.radians(x)),
         "cos_deg": lambda x: math.cos(math.radians(x)),

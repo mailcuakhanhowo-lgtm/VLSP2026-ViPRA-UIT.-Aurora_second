@@ -4,12 +4,30 @@ Sử dụng: deepseek-ai/deepseek-math-7b-instruct (Dùng chung cho cả 2 Stage
 Tận dụng: Đề bài tiếng Việt + Tri thức RAG từ sách Feynman + Đáp án từ Solver.
 """
 
+import re
 import json
 import urllib.request
 import urllib.error
 import os
 import dspy
 import config
+
+
+def clean_explanation_text(text: str) -> str:
+    """
+    Làm sạch lời giải thích sư phạm:
+    - Loại bỏ ký tự tiếng Trung, tiếng Nhật, tiếng Hàn nếu LLM đa ngữ tự sinh thừa.
+    - Loại bỏ các tiền tố như 'Explanation:', 'Giải thích:', 'Lời giải:'.
+    - Chuẩn hóa khoảng trắng.
+    """
+    if not text:
+        return ""
+    # Cắt bỏ mọi ký tự hoặc câu suy nghĩ tiếng Trung/nước ngoài mà model sinh thừa ở cuối
+    cleaned = re.sub(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]+.*$", "", text, flags=re.DOTALL).strip()
+    # Xóa tiền tố thừa
+    cleaned = re.sub(r"^(?:Explanation|Giải thích|Lời giải thích|Hướng dẫn giải)\s*:\s*", "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned
+
 
 
 # ============================================================
@@ -243,7 +261,7 @@ def generate_explanation(
                     answer=str(answer).strip(),
                     unit=str(unit).strip(),
                 )
-                opt_exp = str(getattr(pred, "explanation", "")).strip()
+                opt_exp = clean_explanation_text(str(getattr(pred, "explanation", "")))
                 if opt_exp and len(opt_exp) >= 20:
                     return opt_exp
         except Exception:
@@ -282,7 +300,7 @@ def generate_explanation(
 
             # Bước B: Dịch lời giải thích tiếng Anh sang tiếng Việt qua VinAI (có bảo vệ LaTeX bằng Python)
             if exp_en and len(exp_en) >= 20:
-                exp_vi = translate_en_to_vi(exp_en)
+                exp_vi = clean_explanation_text(translate_en_to_vi(exp_en))
                 if exp_vi and len(exp_vi) >= 15:
                     return exp_vi
         except Exception:
@@ -304,7 +322,7 @@ def generate_explanation(
 
     # Ưu tiên dự phòng 1: Gọi vLLM trực tiếp
     try:
-        explanation = _call_vllm_api(messages_vi)
+        explanation = clean_explanation_text(_call_vllm_api(messages_vi))
         if explanation and len(explanation) >= 20:
             return explanation
     except Exception:
@@ -312,7 +330,7 @@ def generate_explanation(
 
     # Ưu tiên dự phòng 2: Gọi Transformers Local
     try:
-        explanation = _call_local_transformers(messages_vi)
+        explanation = clean_explanation_text(_call_local_transformers(messages_vi))
         if explanation and len(explanation) >= 20:
             return explanation
     except Exception:
@@ -321,7 +339,7 @@ def generate_explanation(
     # ============================================================
     # ƯU TIÊN 4: Fallback Programmatic (Bảo hiểm 100% không để trống trường explanation)
     # ============================================================
-    return _fallback_explanation(answer, unit)
+    return clean_explanation_text(_fallback_explanation(answer, unit))
 
 
 def _fallback_explanation(answer: str, unit: str) -> str:
