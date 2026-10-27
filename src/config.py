@@ -18,12 +18,22 @@ if os.path.exists(KAGGLE_INPUT_DIR):
     RAW_TRAIN_CSV = train_files[0] if train_files else ""
     RAW_DEV_CSV = dev_files[0] if dev_files else ""
     RAW_VAL_CSV = "" # Val nội bộ Kaggle thường gom chung
+
+    # Tự động nhận diện dataset feynman_vol_II trên Kaggle (VD: /kaggle/input/feyman/feynman_vol_II)
+    feynman_dirs = glob.glob(f"{KAGGLE_INPUT_DIR}/**/feynman_vol_II", recursive=True)
+    FEYNMAN_RAW_DIR = feynman_dirs[0] if feynman_dirs else os.path.join(BASE_DIR, "data", "processed", "feynman_vol_II")
+
+    chunks_files = glob.glob(f"{KAGGLE_INPUT_DIR}/**/feynman_theory_chunks.jsonl", recursive=True)
+    PROCESSED_THEORY_JSONL = chunks_files[0] if chunks_files else os.path.join(DATA_DIR, "feynman_theory_chunks.jsonl")
 else:
     # Chạy trên máy tính Local
     RAW_TRAIN_CSV = os.path.join(DATA_DIR, "train_dataset.csv")
     RAW_VAL_CSV = os.path.join(DATA_DIR, "val_dataset.csv")
     RAW_DEV_CSV = os.path.join(DATA_DIR, "dev_dataset.csv")
     RAW_TEST_CSV = os.path.join(DATA_DIR, "test_dataset.csv")
+
+    FEYNMAN_RAW_DIR = os.path.join(BASE_DIR, "data", "processed", "feynman_vol_II")
+    PROCESSED_THEORY_JSONL = os.path.join(DATA_DIR, "feynman_theory_chunks.jsonl")
 
 # --- File Processed ---
 PROCESSED_TRAIN_JSONL = os.path.join(DATA_DIR, "train_processed.jsonl")
@@ -75,8 +85,7 @@ HYDE_MAX_TOKENS = 40
 JUST_TEST_QUERIES = 5
 
 # --- Feynman Theory Data & Chunking Configuration ---
-FEYNMAN_RAW_DIR = os.path.join(BASE_DIR, "data", "processed", "feynman_vol_II")
-PROCESSED_THEORY_JSONL = os.path.join(DATA_DIR, "feynman_theory_chunks.jsonl")
+# (FEYNMAN_RAW_DIR và PROCESSED_THEORY_JSONL đã được tự động dò tìm ở Phần 1)
 
 # Thông số Chunking chuyên biệt cho lý thuyết vật lý
 CHUNK_TARGET_WORDS = 350       # Số từ mục tiêu cho mỗi chunk (~450-550 tokens)

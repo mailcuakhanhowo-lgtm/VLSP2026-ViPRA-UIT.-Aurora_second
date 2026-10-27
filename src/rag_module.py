@@ -444,6 +444,17 @@ class RAGPipeline:
 
 # Kịch bản Build DB nếu chạy file này trực tiếp
 if __name__ == "__main__":
+    # Tự động chia đoạn (chunking) nếu phát hiện thư mục feynman_vol_II trên Kaggle/Local
+    if not os.path.exists(config.PROCESSED_THEORY_JSONL) and os.path.exists(config.FEYNMAN_RAW_DIR):
+        print(f"[*] Phát hiện thư mục raw feynman_vol_II tại: {config.FEYNMAN_RAW_DIR}")
+        print(f"[*] Đang tự động chia đoạn (chunking) sang: {config.PROCESSED_THEORY_JSONL}...")
+        os.makedirs(os.path.dirname(config.PROCESSED_THEORY_JSONL), exist_ok=True)
+        try:
+            from rag_data_prep import process_feynman_corpus
+            process_feynman_corpus(input_dir=config.FEYNMAN_RAW_DIR, output_jsonl=config.PROCESSED_THEORY_JSONL)
+        except Exception as ce:
+            print(f"[!] Lỗi khi chunking feynman_vol_II: {ce}")
+
     if os.path.exists(config.PROCESSED_THEORY_JSONL):
         rag_source = config.PROCESSED_THEORY_JSONL
         print(f"[*] Build RAG từ Feynman Theory Chunks: {rag_source}")

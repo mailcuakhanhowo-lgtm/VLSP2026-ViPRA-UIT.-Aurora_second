@@ -1,4 +1,6 @@
-datasets/
+datasets/*
+!datasets/feynman_theory_chunks.jsonl
+!datasets/test_dataset.csv
 dataset/
 data/
 rag_db/

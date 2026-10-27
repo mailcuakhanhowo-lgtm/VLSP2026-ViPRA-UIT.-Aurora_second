@@ -185,7 +185,7 @@ def _normalize_unit(unit: str) -> str:
 def _compare_answers(pred_val: any, true_str: str) -> bool:
     """
     So sánh giá trị từ exec() với đáp án chuẩn (chuỗi từ CSV).
-    Hỗ trợ: số đơn, list (bài nhiều phần), văn bản.
+    Hỗ trợ: sai số tuyệt đối <= 0.05 HOẶC sai số tương đối <= 5% (0.05).
     """
     # Thử parse ground truth thành số
     try:
@@ -196,7 +196,14 @@ def _compare_answers(pred_val: any, true_str: str) -> bool:
     if true_num is not None and pred_val is not None:
         try:
             pred_num = float(pred_val)
-            return abs(pred_num - true_num) <= NUMERICAL_TOLERANCE
+            abs_diff = abs(pred_num - true_num)
+            # 1. Sai số tuyệt đối <= NUMERICAL_TOLERANCE (mặc định 0.05)
+            if abs_diff <= NUMERICAL_TOLERANCE:
+                return True
+            # 2. Sai số tương đối <= 5% (NUMERICAL_TOLERANCE)
+            if abs(true_num) > 1e-12 and (abs_diff / abs(true_num)) <= NUMERICAL_TOLERANCE:
+                return True
+            return False
         except (ValueError, TypeError):
             pass
 
