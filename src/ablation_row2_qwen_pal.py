@@ -86,14 +86,14 @@ DEFAULT_DEMO_EXPLANATIONS = [
 
 
 def _load_row2_demos() -> List[dspy.Example]:
-    """Tải 4 demos chuẩn từ optimized_prompt.json (lược bỏ context, gắn thêm explanation tiếng Việt)."""
+    """Tải 2 demos chuẩn từ optimized_prompt.json (lược bỏ context, gắn thêm explanation tiếng Việt)."""
     demos = []
     if os.path.exists(config.OPTIMIZED_PROMPT_PATH):
         try:
             with open(config.OPTIMIZED_PROMPT_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
             raw_demos = data.get("predictor", {}).get("demos", [])
-            for idx, d in enumerate(raw_demos):
+            for idx, d in enumerate(raw_demos[:2]):
                 exp_vi = DEFAULT_DEMO_EXPLANATIONS[idx] if idx < len(DEFAULT_DEMO_EXPLANATIONS) else DEFAULT_DEMO_EXPLANATIONS[0]
                 demos.append(
                     dspy.Example(

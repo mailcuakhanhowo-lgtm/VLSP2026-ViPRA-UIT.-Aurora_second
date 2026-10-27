@@ -138,6 +138,11 @@ def run_benchmark(csv_path: str, rows_to_run: List[int], max_examples: int = Non
             else:
                 precomputed_contexts[qid] = config.RAG_FALLBACK_TEXT
         print(f"[RAG] Hoàn tất trích xuất ngữ cảnh cho {len(precomputed_contexts)} câu.\n")
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     row4_solver = load_optimized_solver() if 4 in rows_to_run else None
 
@@ -152,6 +157,12 @@ def run_benchmark(csv_path: str, rows_to_run: List[int], max_examples: int = Non
     all_details = {}
 
     for r_id in rows_to_run:
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         r_name = row_names.get(r_id, f"Row {r_id}")
         print("-" * 72)
         print(f">>> ĐANG CHẠY ĐÁNH GIÁ {r_name} ({n_total} câu)...")

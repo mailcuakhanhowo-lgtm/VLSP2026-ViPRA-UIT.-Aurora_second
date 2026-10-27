@@ -1,6 +1,9 @@
 import os
 import glob
 
+# Chống phân mảnh bộ nhớ GPU trên PyTorch (đặc biệt khi xử lý chuỗi dài trên T4)
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 # ==========================================
 # 1. PATH & DATA CONFIGURATIONS (Auto-detect Kaggle)
 # ==========================================
@@ -61,7 +64,8 @@ TRANSLATION_EN2VI_MODEL_ID = "vinai/vinai-translate-en2vi-v2"
 EMBEDDING_MODEL_ID = "BAAI/bge-m3"
 import torch
 
-EMBEDDING_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# Trên Kaggle: Chạy BGE-M3 trên 30GB CPU RAM để nhường trọn 100% VRAM GPU cho Qwen2.5-7B
+EMBEDDING_DEVICE = "cpu" if os.path.exists(KAGGLE_INPUT_DIR) else ("cuda" if torch.cuda.is_available() else "cpu")
 EMBEDDING_DTYPE = "float16"         # Ép BGE-M3 chạy FP16 để giảm 50% VRAM (chỉ còn ~1.1 GB)
 EMBEDDING_DIMENSION = 1024
 EMBEDDING_BATCH_SIZE = 8            # Lô 8 tài liệu/lần encode để triệt tiêu hoàn toàn VRAM spike

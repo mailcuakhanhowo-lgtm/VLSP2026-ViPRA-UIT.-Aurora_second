@@ -41,11 +41,12 @@ def setup_lm():
     else:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-        print(f"[Predict Setup] Nạp {config.BASE_MODEL_ID} cục bộ lên GPU (device_map='auto', float16)...")
+        print(f"[Predict Setup] Nạp {config.BASE_MODEL_ID} cục bộ lên GPU (device_map='auto', float16, sdpa)...")
         hf_model = AutoModelForCausalLM.from_pretrained(
             config.BASE_MODEL_ID,
             torch_dtype=torch.float16,
             device_map="auto",
+            attn_implementation="sdpa",
             trust_remote_code=True,
         )
         hf_tokenizer = AutoTokenizer.from_pretrained(config.BASE_MODEL_ID, trust_remote_code=True)

@@ -86,18 +86,20 @@ class Row3RAGJointPALSignature(dspy.Signature):
 
 
 def _load_row3_demos() -> List[dspy.Example]:
-    """Tải 4 demos chuẩn từ optimized_prompt.json (giữ nguyên context Feynman, gắn thêm explanation tiếng Việt)."""
+    """Tải 2 demos chuẩn từ optimized_prompt.json (cắt gọn context để tiết kiệm VRAM, gắn thêm explanation tiếng Việt)."""
     demos = []
     if os.path.exists(config.OPTIMIZED_PROMPT_PATH):
         try:
             with open(config.OPTIMIZED_PROMPT_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
             raw_demos = data.get("predictor", {}).get("demos", [])
-            for idx, d in enumerate(raw_demos):
+            for idx, d in enumerate(raw_demos[:2]):
                 exp_vi = DEFAULT_DEMO_EXPLANATIONS[idx] if idx < len(DEFAULT_DEMO_EXPLANATIONS) else DEFAULT_DEMO_EXPLANATIONS[0]
+                raw_ctx = str(d.get("context", config.RAG_FALLBACK_TEXT)).strip()
+                concise_ctx = raw_ctx[:350].strip() + "..." if len(raw_ctx) > 350 else raw_ctx
                 demos.append(
                     dspy.Example(
-                        context=d.get("context", config.RAG_FALLBACK_TEXT),
+                        context=concise_ctx,
                         question=d.get("question", ""),
                         explanation=exp_vi,
                         python_code=d.get("python_code", ""),
@@ -259,11 +261,19 @@ def solve_row3(query_id: str, query: str, precomputed_context: str = None) -> di
                 except Exception as re:
                     logger.warning(f"[Row 3] Lỗi truy xuất RAG cho [{query_id}]: {re}")
 
+        # Giới hạn context tối đa ~1500 ký tự để an toàn VRAM tuyệt đối trên 2x T4
+        if context and len(context) > 1500:
+            context = context[:1500].rsplit("\n\n", 1)[0]
+
         # Bước 1: Dịch bảo toàn ký hiệu (Mục 2.3)
         if getattr(config, "USE_TRANSLATION", True):
             question_for_llm = translate_vi_to_en(query)
         else:
             question_for_llm = query
+
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         # Bước 2: Gọi Qwen sinh chung cả explanation và python_code (CÓ RAG context K)
         pred = row3_solver_instance(question=question_for_llm, context=context)
