@@ -155,9 +155,19 @@ TRANSLATION_MODEL_ID = "vinai/vinai-translate-vi2en-v2"
 # Thư mục cache lưu model đã tải về
 if os.path.exists(KAGGLE_INPUT_DIR):
     TRANSLATION_CACHE_DIR = "/kaggle/working/models/vinai-translate"
-    # Đảm bảo đường dẫn output nằm trong /kaggle/working/ (Writable)
-    DSPY_OUTPUT_DIR = "/kaggle/working/output"
-    OPTIMIZED_PROMPT_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_prompt.json")
+    # Giữ DSPY_OUTPUT_DIR trỏ tới output/ trong repo (hoặc tự dò tìm)
+    repo_prompt = os.path.join(BASE_DIR, "output", "optimized_prompt.json")
+    if os.path.exists(repo_prompt):
+        DSPY_OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+        OPTIMIZED_PROMPT_PATH = repo_prompt
+    else:
+        found_prompts = glob.glob(f"/kaggle/working/**/optimized_prompt.json", recursive=True) + glob.glob(f"{KAGGLE_INPUT_DIR}/**/optimized_prompt.json", recursive=True)
+        if found_prompts:
+            OPTIMIZED_PROMPT_PATH = found_prompts[0]
+            DSPY_OUTPUT_DIR = os.path.dirname(found_prompts[0])
+        else:
+            DSPY_OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+            OPTIMIZED_PROMPT_PATH = os.path.join(DSPY_OUTPUT_DIR, "optimized_prompt.json")
 else:
     TRANSLATION_CACHE_DIR = os.path.join(BASE_DIR, "models", "vinai-translate")
 

@@ -99,14 +99,24 @@ def setup_lm():
 
 def load_optimized_solver() -> PhysicsSolver:
     """Nạp module đã được tối ưu từ file JSON."""
-    if not os.path.exists(config.OPTIMIZED_PROMPT_PATH):
-        raise FileNotFoundError(
-            f"Chưa tìm thấy Optimized Prompt tại: {config.OPTIMIZED_PROMPT_PATH}\n"
-            "Hãy chạy 'uv run python src/optimize.py' trước!"
-        )
+    prompt_path = config.OPTIMIZED_PROMPT_PATH
+    if not os.path.exists(prompt_path):
+        candidate1 = os.path.join(config.BASE_DIR, "output", "optimized_prompt.json")
+        if os.path.exists(candidate1):
+            prompt_path = candidate1
+        else:
+            import glob
+            found = glob.glob(os.path.join(config.BASE_DIR, "**", "optimized_prompt.json"), recursive=True)
+            if found:
+                prompt_path = found[0]
+            else:
+                raise FileNotFoundError(
+                    f"Chưa tìm thấy Optimized Prompt tại: {config.OPTIMIZED_PROMPT_PATH}\n"
+                    "Hãy chạy 'uv run python src/optimize.py' trước!"
+                )
     solver = PhysicsSolver()
-    solver.load(config.OPTIMIZED_PROMPT_PATH)
-    print(f"[Predict] Đã nạp Optimized Prompt từ: {config.OPTIMIZED_PROMPT_PATH}")
+    solver.load(prompt_path)
+    print(f"[Predict] Đã nạp Optimized Prompt từ: {prompt_path}")
     return solver
 
 
